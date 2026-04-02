@@ -365,7 +365,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="admin-board">
+  <section class="admin-board admin-board--crossings">
     <section class="content-card">
       <div class="section-head">
         <div>
@@ -703,7 +703,7 @@ onBeforeUnmount(() => {
         </template>
       </section>
 
-      <section class="content-card">
+      <section class="content-card admin-crossings-import">
         <div class="section-head">
           <div>
             <p class="micro-label">Import hàng loạt</p>

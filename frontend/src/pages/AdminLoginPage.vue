@@ -30,9 +30,12 @@ async function submit() {
   <div class="login-shell">
     <div class="login-surface">
       <div class="login-brand">
-        <p class="eyebrow">Khu vực quản trị</p>
-        <h1>Điều hành dữ liệu với giao diện dành riêng cho quản trị</h1>
-        <p>Đăng nhập để quản lý điểm giao cắt, điều phối giờ tàu và xác nhận hồ sơ sự cố.</p>
+        <p class="micro-label">Khu vực quản trị</p>
+        <h1>Điều hành dữ liệu đường sắt bằng một giao diện đủ sắc để dùng như sản phẩm thật</h1>
+        <p class="body-copy">
+          Đăng nhập để quản lý điểm giao cắt, điều phối giờ tàu, kiểm soát sự cố, ảnh hiện trường
+          và trạng thái người dùng nội bộ trên cùng một dashboard.
+        </p>
       </div>
 
       <section class="login-card">

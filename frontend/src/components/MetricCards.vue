@@ -23,7 +23,7 @@ defineProps({
     </article>
     <article class="metric-tile metric-tile--mint">
       <span class="metric-tile__label">Bài tin liên quan</span>
-      <strong class="metric-tile__value">{{ summary.total_articles ?? 0 }}</strong>
+      <strong class="metric-tile__value">{{ summary.article_count ?? 0 }}</strong>
     </article>
   </section>
 </template>
