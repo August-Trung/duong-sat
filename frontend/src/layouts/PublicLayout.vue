@@ -62,8 +62,8 @@ function clearFilters() {
       <div class="public-header__brand">
         <div class="brand-mark">BH</div>
         <div>
-          <p class="micro-label">Giám sát giao cắt đường sắt</p>
-          <h1>Biên Hòa Rail Watch</h1>
+          <p class="micro-label">Nền tảng giám sát giao cắt đường sắt</p>
+          <h1>Bien Hoa Rail Watch</h1>
         </div>
       </div>
 
@@ -96,12 +96,18 @@ function clearFilters() {
     <main class="public-main">
       <section class="hero-panel">
         <div class="hero-panel__copy">
-          <p class="micro-label">Nền tảng tra cứu công khai</p>
-          <h2>Theo dõi điểm giao cắt, lịch tàu và các khu vực rủi ro tại Biên Hòa</h2>
+          <p class="micro-label">Trung tâm tra cứu công khai</p>
+          <h2>Theo dõi giao cắt và vùng rủi ro rõ ràng, nhanh gọn</h2>
           <p>
-            Giao diện mới tập trung vào thao tác nhanh: tìm điểm, lọc theo mức nguy hiểm, xem
-            điểm gần bạn và theo dõi sự cố mà không cần đi qua nhiều lớp màn hình.
+            Giao diện được làm lại theo hướng sản phẩm thật: thông tin rõ ưu tiên, thao tác nhanh,
+            dễ đọc trên desktop lẫn mobile, và đủ chiều sâu để hỗ trợ tra cứu, cảnh báo theo khu
+            vực và ra quyết định tại hiện trường.
           </p>
+          <div class="hero-inline-stats">
+            <span class="soft-badge soft-badge--accent">Bản đồ thời gian thực</span>
+            <span class="soft-badge">Dành cho cộng đồng và vận hành</span>
+            <span class="soft-badge">Tối ưu tra cứu trên hiện trường</span>
+          </div>
         </div>
 
         <div class="hero-panel__stats">
@@ -233,7 +239,12 @@ function clearFilters() {
               </select>
             </label>
 
-            <button class="primary-button" type="button" :disabled="publicState.locating" @click="handleLocateUser">
+            <button
+              class="primary-button"
+              type="button"
+              :disabled="publicState.locating"
+              @click="handleLocateUser"
+            >
               {{ publicState.locating ? 'Đang định vị...' : 'Dùng vị trí của tôi' }}
             </button>
             <button class="secondary-button" type="button" @click="clearFilters">Đặt lại</button>
@@ -245,7 +256,7 @@ function clearFilters() {
             Đang dùng vị trí hiện tại để tính khoảng cách và gợi ý điểm gần nhất.
           </p>
           <p v-else>
-            Bạn có thể bật vị trí hoặc dùng bộ lọc phía trên để tập trung vào nhóm điểm cần xem.
+            Bật vị trí hoặc dùng bộ lọc phía trên để thu hẹp nhanh các điểm cần theo dõi.
           </p>
           <p v-if="publicState.error" class="error-text">{{ publicState.error }}</p>
         </div>

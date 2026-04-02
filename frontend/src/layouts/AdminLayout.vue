@@ -25,13 +25,14 @@ async function handleLogout() {
       <div class="admin-brand">
         <div class="brand-mark">RW</div>
         <div>
-          <p class="micro-label">Khu điều hành nội bộ</p>
+          <p class="micro-label">Không gian vận hành nội bộ</p>
           <h1>RailWatch Admin</h1>
         </div>
       </div>
 
       <p class="body-copy">
-        Quản trị dữ liệu điểm giao cắt, lịch tàu và sự cố với bố cục tập trung vào thao tác nhanh.
+        Bảng điều phối dành cho đội vận hành dữ liệu: kiểm soát điểm giao cắt, lịch tàu, sự cố,
+        ảnh hiện trường và phân quyền người dùng trên cùng một sản phẩm thống nhất.
       </p>
 
       <nav class="admin-nav">
@@ -75,16 +76,19 @@ async function handleLogout() {
       <section class="content-card admin-profile-card">
         <div class="section-head">
           <div>
-            <p class="micro-label">Tài khoản</p>
+            <p class="micro-label">Tài khoản hiện tại</p>
             <h3>{{ currentUser?.full_name || 'Quản trị viên' }}</h3>
           </div>
           <span class="soft-badge soft-badge--accent">{{ currentUser?.role || 'admin' }}</span>
         </div>
+
         <p class="body-copy">{{ currentUser?.username }}</p>
+
         <div class="hero-inline-stats">
           <span class="soft-badge">{{ adminState.overview.crossings?.length || 0 }} hồ sơ</span>
           <span class="soft-badge">{{ adminState.overview.incidents?.length || 0 }} sự cố</span>
         </div>
+
         <button class="primary-button" type="button" @click="handleLogout">Đăng xuất</button>
       </section>
     </aside>
@@ -93,11 +97,11 @@ async function handleLogout() {
       <header class="content-card admin-header-card">
         <div class="section-head">
           <div>
-            <p class="micro-label">Quản trị dữ liệu</p>
-            <h2>Điều hành điểm giao cắt, giờ tàu và sự cố</h2>
+            <p class="micro-label">Quản trị dữ liệu đường sắt</p>
+            <h2>Điều hành dữ liệu hiện trường với trải nghiệm rõ ràng, nhanh và sẵn sàng cho vận hành thật</h2>
           </div>
           <span v-if="adminState.loading" class="soft-badge">Đang đồng bộ dữ liệu...</span>
-          <span v-else class="soft-badge soft-badge--accent">Khu vực chỉ dành cho quản trị</span>
+          <span v-else class="soft-badge soft-badge--accent">Workspace nội bộ</span>
         </div>
       </header>
 

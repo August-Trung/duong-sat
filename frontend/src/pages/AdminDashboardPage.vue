@@ -57,18 +57,27 @@ async function downloadReport(type) {
         <p class="micro-label">Toàn cảnh vận hành</p>
         <h3>Trung tâm theo dõi dữ liệu đường sắt Biên Hòa</h3>
         <p class="body-copy">
-          Tập trung vào kiểm duyệt, chất lượng dữ liệu, nhật ký thay đổi và xuất báo cáo nhanh cho vận hành.
+          Tập trung vào kiểm duyệt, chất lượng dữ liệu, nhật ký thay đổi và xuất báo cáo nhanh cho
+          đội vận hành. Đây là lớp quản trị cần đủ rõ ràng để dùng hằng ngày, không chỉ để demo.
         </p>
       </article>
 
       <article class="content-card">
         <p class="micro-label">Xuất báo cáo</p>
-        <h3>Báo cáo CSV sẵn sàng tải ngay</h3>
+        <h3>CSV sẵn sàng tải ngay</h3>
         <div class="toolbar-actions">
-          <button class="primary-button" :disabled="downloading === 'crossings'" @click="downloadReport('crossings')">
+          <button
+            class="primary-button"
+            :disabled="downloading === 'crossings'"
+            @click="downloadReport('crossings')"
+          >
             {{ downloading === 'crossings' ? 'Đang xuất...' : 'Xuất danh mục điểm' }}
           </button>
-          <button class="secondary-button" :disabled="downloading === 'quality'" @click="downloadReport('quality')">
+          <button
+            class="secondary-button"
+            :disabled="downloading === 'quality'"
+            @click="downloadReport('quality')"
+          >
             {{ downloading === 'quality' ? 'Đang xuất...' : 'Xuất chất lượng dữ liệu' }}
           </button>
         </div>
@@ -87,7 +96,11 @@ async function downloadReport(type) {
         </div>
 
         <div class="stack-list">
-          <div v-for="alert in overview.qualityAlerts?.slice(0, 8)" :key="`${alert.type}-${alert.crossing_id}-${alert.title}`" class="stack-item">
+          <div
+            v-for="alert in overview.qualityAlerts?.slice(0, 8)"
+            :key="`${alert.type}-${alert.crossing_id}-${alert.title}`"
+            class="stack-item"
+          >
             <strong>{{ alert.title }}</strong>
             <span>{{ alert.detail }}</span>
           </div>
