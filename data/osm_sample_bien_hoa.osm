@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6" generator="manual-sample">
+  <node id="1" lat="10.9263500" lon="106.8671000" />
+  <node id="2" lat="10.9274000" lon="106.8676500" />
+  <node id="3" lat="10.9286500" lon="106.8683500" />
+  <node id="4" lat="10.9298500" lon="106.8691000" />
+  <node id="5" lat="10.9309500" lon="106.8697000" />
+  <node id="6" lat="10.9281000" lon="106.8660500" />
+  <node id="7" lat="10.9285500" lon="106.8668500" />
+  <node id="8" lat="10.9290500" lon="106.8678000" />
+  <node id="9" lat="10.9295500" lon="106.8688000" />
+  <node id="10" lat="10.9300500" lon="106.8698500" />
+  <node id="11" lat="10.9284200" lon="106.8689200" />
+  <node id="12" lat="10.9284200" lon="106.8691800" />
+  <node id="13" lat="10.9286900" lon="106.8691800" />
+  <node id="14" lat="10.9286900" lon="106.8689200" />
+  <node id="15" lat="10.9292400" lon="106.8683600" />
+  <node id="16" lat="10.9292400" lon="106.8686200" />
+  <node id="17" lat="10.9295200" lon="106.8686200" />
+  <node id="18" lat="10.9295200" lon="106.8683600" />
+  <node id="19" lat="10.9300000" lon="106.8693200" />
+  <node id="20" lat="10.9300000" lon="106.8696400" />
+  <node id="21" lat="10.9303400" lon="106.8696400" />
+  <node id="22" lat="10.9303400" lon="106.8693200" />
+  <node id="31" lat="10.9278500" lon="106.8689500">
+    <tag k="power" v="tower" />
+  </node>
+  <node id="32" lat="10.9289500" lon="106.8695000">
+    <tag k="power" v="tower" />
+  </node>
+  <node id="33" lat="10.9301500" lon="106.8700500">
+    <tag k="power" v="tower" />
+  </node>
+  <node id="41" lat="10.9279500" lon="106.8672500" />
+  <node id="42" lat="10.9279500" lon="106.8675500" />
+  <node id="43" lat="10.9282500" lon="106.8675500" />
+  <node id="44" lat="10.9282500" lon="106.8672500" />
+  <node id="45" lat="10.9280500" lon="106.8673400" />
+  <node id="46" lat="10.9280500" lon="106.8674600" />
+  <node id="47" lat="10.9281600" lon="106.8674600" />
+  <node id="48" lat="10.9281600" lon="106.8673400" />
+
+  <way id="1001">
+    <nd ref="1" />
+    <nd ref="2" />
+    <nd ref="3" />
+    <nd ref="4" />
+    <nd ref="5" />
+    <tag k="highway" v="primary" />
+    <tag k="name" v="Xa lộ Hà Nội" />
+    <tag k="lanes" v="4" />
+  </way>
+
+  <way id="1002">
+    <nd ref="6" />
+    <nd ref="7" />
+    <nd ref="8" />
+    <nd ref="9" />
+    <nd ref="10" />
+    <tag k="highway" v="secondary" />
+    <tag k="name" v="Đường song hành" />
+    <tag k="lanes" v="2" />
+  </way>
+
+  <way id="3001">
+    <nd ref="31" />
+    <nd ref="32" />
+    <nd ref="33" />
+    <tag k="power" v="line" />
+    <tag k="name" v="Tuyến điện 110kV" />
+    <tag k="voltage" v="110000" />
+  </way>
+
+  <way id="2001">
+    <nd ref="11" />
+    <nd ref="12" />
+    <nd ref="13" />
+    <nd ref="14" />
+    <nd ref="11" />
+    <tag k="building" v="industrial" />
+    <tag k="name" v="Kho vận phía đông" />
+    <tag k="building:levels" v="3" />
+  </way>
+
+  <way id="2002">
+    <nd ref="15" />
+    <nd ref="16" />
+    <nd ref="17" />
+    <nd ref="18" />
+    <nd ref="15" />
+    <tag k="building" v="warehouse" />
+    <tag k="name" v="Nhà kho logistics" />
+    <tag k="height" v="14" />
+  </way>
+
+  <way id="2101">
+    <nd ref="41" />
+    <nd ref="42" />
+    <nd ref="43" />
+    <nd ref="44" />
+    <nd ref="41" />
+  </way>
+
+  <way id="2102">
+    <nd ref="45" />
+    <nd ref="46" />
+    <nd ref="47" />
+    <nd ref="48" />
+    <nd ref="45" />
+  </way>
+
+  <relation id="4001">
+    <member type="way" ref="2101" role="outer" />
+    <member type="way" ref="2102" role="inner" />
+    <tag k="type" v="multipolygon" />
+    <tag k="building" v="commercial" />
+    <tag k="name" v="Khối thương mại có sân giữa" />
+    <tag k="building:levels" v="5" />
+  </relation>
+</osm>

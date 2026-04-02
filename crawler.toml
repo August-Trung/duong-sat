@@ -1,0 +1,24 @@
+[area]
+city = "Biên Hòa"
+province = "Đồng Nai"
+
+[news]
+language = "vi"
+country = "VN"
+edition = "VN:vi"
+days_back = 365
+queries = [
+  "Biên Hòa đường sắt tai nạn",
+  "Đồng Nai đường sắt tai nạn",
+  "Biên Hòa đường ngang đường sắt",
+  "Đồng Nai tàu hỏa va chạm",
+  "Biên Hòa tàu hỏa cảnh báo",
+]
+
+[schedules]
+source_url = "https://giotaugiave.dsvn.vn/"
+stations = ["Biên Hòa", "Dĩ An", "Long Khánh", "Sài Gòn"]
+
+[matching]
+crossing_keywords = ["đường ngang", "lối đi tự mở", "gác chắn", "tàu hỏa", "đường sắt"]
+severe_keywords = ["tử vong", "chết", "nghiêm trọng", "lật xe", "va chạm", "tai nạn"]

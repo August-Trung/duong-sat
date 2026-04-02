@@ -1,0 +1,4 @@
+code,name,address,ward,district,city,latitude,longitude,crossing_type,barrier_type,manager_name,manager_phone,verification_status,coordinate_source,source_reference,verification_notes,surveyed_at,verified_at,notes
+BH-001,Đường ngang ga Biên Hòa,Ga Biên Hòa,Quang Vinh,Biên Hòa,Đồng Nai,10.9446,106.8241,duong_ngang_hop_phap,co_gac,Trực ban ga Biên Hòa,0900000001,draft,Demo seed,,Chưa xác minh thực địa,,,Điểm gần ga
+BH-002,Lối đi tự mở khu vực Hố Nai,Hố Nai,Tân Biên,Biên Hòa,Đồng Nai,10.9660,106.8390,loi_di_tu_mo,khong_co,Tổ dân phố,0900000002,draft,Demo seed,,Cần khảo sát thực địa,,,Cần khảo sát thực địa
+BH-003,Đường ngang Long Bình,Long Bình,Long Bình,Biên Hòa,Đồng Nai,10.9182,106.8870,duong_ngang_hop_phap,tu_dong,Nhân viên tuần đường,0900000003,draft,Demo seed,,Chưa xác minh thực địa,,,Gần khu công nghiệp
