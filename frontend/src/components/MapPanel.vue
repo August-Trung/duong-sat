@@ -176,6 +176,13 @@ function updateBaseLayer() {
   currentBaseLayer.addTo(map)
 }
 
+function suppressDoubleClickZoom(layer) {
+  layer.on('dblclick', (event) => {
+    L.DomEvent.stop(event)
+  })
+  return layer
+}
+
 function renderLayers() {
   crossingLayer.clearLayers()
   highRiskLayer.clearLayers()
@@ -192,13 +199,15 @@ function renderLayers() {
 
   if (props.userLocation?.latitude && props.userLocation?.longitude) {
     const latlng = [props.userLocation.latitude, props.userLocation.longitude]
-    L.circleMarker(latlng, {
+    suppressDoubleClickZoom(
+      L.circleMarker(latlng, {
       radius: 8,
       color: '#ffffff',
       weight: 3,
       fillColor: '#3b82f6',
-      fillOpacity: 1,
-    })
+        fillOpacity: 1,
+      })
+    )
       .bindPopup('Vị trí của tôi')
       .addTo(userLayer)
     L.circle(latlng, {
@@ -221,13 +230,15 @@ function renderLayers() {
       fillOpacity: 0.1,
       interactive: false,
     }).addTo(areaLayer)
-    L.circleMarker(latlng, {
+    suppressDoubleClickZoom(
+      L.circleMarker(latlng, {
       radius: 5,
       color: '#3b82f6',
       weight: 2,
       fillColor: '#ffffff',
-      fillOpacity: 1,
-    })
+        fillOpacity: 1,
+      })
+    )
       .bindPopup(props.areaAlert.label || 'Vùng quan tâm')
       .addTo(areaLayer)
   }
@@ -249,17 +260,20 @@ function renderLayers() {
     }
 
     if (props.overlays.crossings) {
-      const marker = L.circleMarker([crossing.latitude, crossing.longitude], {
+      const marker = suppressDoubleClickZoom(L.circleMarker([crossing.latitude, crossing.longitude], {
         radius: isHighlighted ? 10 : Math.max(6, Math.min(14, 6 + Math.floor((crossing.risk_score || 0) / 40))),
         color: isSelected ? '#ffffff' : isHighlighted ? '#2563eb' : '#4d6176',
         weight: isSelected ? 2.5 : isHighlighted ? 2 : 1.1,
         fillColor: levelColors[crossing.risk_level] || levelColors.unknown,
         fillOpacity: 0.92,
-      })
+      }))
       marker.bindPopup(
         `<strong>${crossing.name}</strong><br/>Mức độ: ${riskLabel(crossing.risk_level)}<br/>Điểm rủi ro: ${crossing.risk_score}`
       )
-      marker.on('click', () => emit('select', crossing.id))
+      marker.on('click', () => {
+        marker.openPopup()
+        emit('select', crossing.id)
+      })
       marker.addTo(crossingLayer)
     }
 
