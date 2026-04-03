@@ -43,6 +43,137 @@ export const publicFilters = reactive({
 })
 
 let detailRequestId = 0
+const MAX_LOCATION_ACCURACY_METERS = 5000
+const DESIRED_LOCATION_ACCURACY_METERS = 1000
+const LOCATION_WATCH_WINDOW_MS = 15000
+const HIGH_ACCURACY_TIMEOUT_MS = 12000
+const LOW_ACCURACY_TIMEOUT_MS = 8000
+
+function normalizePositionSample(position) {
+  const latitude = Number(position?.coords?.latitude)
+  const longitude = Number(position?.coords?.longitude)
+  const accuracy = Number(position?.coords?.accuracy || 0)
+
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return null
+  }
+
+  return { position, latitude, longitude, accuracy }
+}
+
+function pickBetterPosition(currentBest, candidate) {
+  if (!candidate) return currentBest
+  if (!currentBest) return candidate
+
+  const currentAccuracy = currentBest.accuracy > 0 ? currentBest.accuracy : Number.POSITIVE_INFINITY
+  const candidateAccuracy = candidate.accuracy > 0 ? candidate.accuracy : Number.POSITIVE_INFINITY
+
+  if (candidateAccuracy < currentAccuracy) return candidate
+  if (candidateAccuracy > currentAccuracy) return currentBest
+
+  const currentTimestamp = Number(currentBest.position?.timestamp || 0)
+  const candidateTimestamp = Number(candidate.position?.timestamp || 0)
+  return candidateTimestamp >= currentTimestamp ? candidate : currentBest
+}
+
+function getPosition(options) {
+  return new Promise((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(resolve, reject, options)
+  })
+}
+
+function watchBestPosition({
+  desiredAccuracy = DESIRED_LOCATION_ACCURACY_METERS,
+  watchWindowMs = LOCATION_WATCH_WINDOW_MS,
+} = {}) {
+  return new Promise((resolve, reject) => {
+    let bestSample = null
+    let settled = false
+    let lastError = null
+    let watchId = null
+
+    const finalize = () => {
+      if (settled) return
+      settled = true
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId)
+      }
+
+      if (bestSample) {
+        resolve(bestSample.position)
+        return
+      }
+
+      reject(lastError || new Error('\u004b\u0068\u00f4\u006e\u0067\u0020\u0074\u0068\u1ec3\u0020\u006c\u1ea5\u0079\u0020\u0076\u1ecb\u0020\u0074\u0072\u00ed\u0020\u0068\u0069\u1ec7\u006e\u0020\u0074\u1ea1\u0069\u002e'))
+    }
+
+    const timerId = window.setTimeout(finalize, watchWindowMs)
+
+    const handleSuccess = (position) => {
+      const sample = normalizePositionSample(position)
+      if (!sample) return
+
+      bestSample = pickBetterPosition(bestSample, sample)
+      if (bestSample.accuracy > 0 && bestSample.accuracy <= desiredAccuracy) {
+        window.clearTimeout(timerId)
+        finalize()
+      }
+    }
+
+    const handleError = (error) => {
+      lastError = error
+    }
+
+    watchId = navigator.geolocation.watchPosition(handleSuccess, handleError, {
+      enableHighAccuracy: true,
+      maximumAge: 0,
+      timeout: HIGH_ACCURACY_TIMEOUT_MS,
+    })
+  })
+}
+
+async function readBestAvailablePosition() {
+  let bestSample = null
+  let lastError = null
+
+  const collect = (position) => {
+    bestSample = pickBetterPosition(bestSample, normalizePositionSample(position))
+  }
+
+  const attempts = [
+    getPosition({
+      enableHighAccuracy: true,
+      timeout: HIGH_ACCURACY_TIMEOUT_MS,
+      maximumAge: 0,
+    }),
+    watchBestPosition({
+      desiredAccuracy: DESIRED_LOCATION_ACCURACY_METERS,
+      watchWindowMs: LOCATION_WATCH_WINDOW_MS,
+    }),
+    getPosition({
+      enableHighAccuracy: false,
+      timeout: LOW_ACCURACY_TIMEOUT_MS,
+      maximumAge: 30000,
+    }),
+  ]
+
+  const results = await Promise.allSettled(attempts)
+
+  for (const result of results) {
+    if (result.status === 'fulfilled') {
+      collect(result.value)
+      continue
+    }
+
+    lastError = result.reason
+  }
+
+  if (bestSample) {
+    return bestSample.position
+  }
+
+  throw lastError || new Error('\u004b\u0068\u00f4\u006e\u0067\u0020\u0074\u0068\u1ec3\u0020\u006c\u1ea5\u0079\u0020\u0076\u1ecb\u0020\u0074\u0072\u00ed\u0020\u0068\u0069\u1ec7\u006e\u0020\u0074\u1ea1\u0069\u002e')
+}
 
 function buildApiFilters(filters = {}) {
   return {
@@ -134,6 +265,10 @@ export function resetPublicFilters() {
   })
 }
 
+export function clearPublicError() {
+  publicState.error = ''
+}
+
 export async function locateUser() {
   if (!navigator.geolocation) {
     throw new Error('Trình duyệt không hỗ trợ định vị.')
@@ -143,29 +278,17 @@ export async function locateUser() {
   publicState.error = ''
 
   try {
-    const getPosition = (options) =>
-      new Promise((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, options)
-      })
+    const position = await readBestAvailablePosition()
 
-    let position = await getPosition({
-      enableHighAccuracy: true,
-      timeout: 12000,
-      maximumAge: 0,
-    })
-
-    if ((position.coords.accuracy || 0) > 1000) {
-      position = await getPosition({
-        enableHighAccuracy: false,
-        timeout: 8000,
-        maximumAge: 0,
-      })
+    const accuracy = Number(position.coords.accuracy || 0)
+    if (accuracy > MAX_LOCATION_ACCURACY_METERS) {
+      throw new Error('Vị trí hiện tại chưa đủ chính xác. Hãy bật GPS chính xác cao hoặc chọn vị trí trên bản đồ.')
     }
 
     publicState.userLocation = {
       latitude: position.coords.latitude,
       longitude: position.coords.longitude,
-      accuracy: position.coords.accuracy,
+      accuracy,
       label: 'Vị trí của tôi',
       capturedAt: new Date().toISOString(),
       source: 'gps',
