@@ -296,6 +296,30 @@ def create_app(database_path: str | None = None) -> FastAPI:
         conn = get_conn()
         return _list_public_incidents(conn, limit=limit)
 
+    @app.get("/api/scene3d/manifest")
+    def scene3d_manifest():
+        manifest_path = DEFAULT_OUTPUT_DIR / "manifest.json"
+        if not manifest_path.exists():
+            if not any([scene3d_osm_path, scene3d_gpkg_path, scene3d_dem_path]):
+                raise HTTPException(status_code=404, detail="Scene 3D manifest chưa được tạo.")
+
+            export_scene_bundle(
+                db_path=db_path,
+                output_dir=DEFAULT_OUTPUT_DIR,
+                osm_path=scene3d_osm_path,
+                gpkg_path=scene3d_gpkg_path,
+                dem_paths=[scene3d_dem_path] if scene3d_dem_path else None,
+            )
+
+        return read_scene_manifest(DEFAULT_OUTPUT_DIR)
+
+    @app.get("/api/scene3d/tiles/{tile_id}")
+    def scene3d_tile(tile_id: str):
+        tile_path = DEFAULT_OUTPUT_DIR / "tiles" / f"{tile_id}.json"
+        if not tile_path.exists():
+            raise HTTPException(status_code=404, detail=f"Không tìm thấy tile scene3d '{tile_id}'.")
+        return read_scene_tile(tile_id, DEFAULT_OUTPUT_DIR)
+
     @app.post("/api/auth/login")
     def login(payload: LoginRequest):
         conn = get_conn()

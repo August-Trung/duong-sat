@@ -58,6 +58,34 @@ WATER_COLORS = {
     "water": "#72b1e0",
 }
 
+ROAD_RANKS = {
+    "motorway": 0,
+    "trunk": 1,
+    "primary": 2,
+    "secondary": 3,
+    "tertiary": 4,
+    "residential": 5,
+    "service": 6,
+    "unclassified": 7,
+}
+
+BUILDING_KIND_STYLES = {
+    "apartments": {"height": 28, "wall": "#f5f4ef", "roof": "#e6e2d8"},
+    "residential": {"height": 14, "wall": "#f7f5ef", "roof": "#e9e4d9"},
+    "house": {"height": 11, "wall": "#f8f6f1", "roof": "#e1ddd2"},
+    "detached": {"height": 10, "wall": "#faf7f1", "roof": "#e4dfd3"},
+    "commercial": {"height": 20, "wall": "#f2f1ec", "roof": "#ddd8cc"},
+    "retail": {"height": 16, "wall": "#f6f4ed", "roof": "#ded8cb"},
+    "office": {"height": 24, "wall": "#f1f3f4", "roof": "#d6dde0"},
+    "industrial": {"height": 18, "wall": "#ece7de", "roof": "#d5cec3"},
+    "warehouse": {"height": 16, "wall": "#efebe2", "roof": "#d2cbbb"},
+    "school": {"height": 15, "wall": "#f7f5ef", "roof": "#d8d2c5"},
+    "hospital": {"height": 22, "wall": "#f4f6f8", "roof": "#d7dde2"},
+    "civic": {"height": 18, "wall": "#f3f1eb", "roof": "#d8d1c3"},
+    "yes": {"height": 12, "wall": "#f6f4ee", "roof": "#e0dbcf"},
+    "building": {"height": 12, "wall": "#f6f4ee", "roof": "#e0dbcf"},
+}
+
 
 @dataclass
 class TileFeatureCounts:
@@ -204,16 +232,20 @@ def parse_osm_xml(osm_path: str | Path) -> dict:
             continue
 
         if "building" in tags:
+            building_kind = tags.get("building", "yes")
+            style = _building_style(building_kind)
             building = _polygon_feature_from_relation(
                 relation,
                 way_geometries,
                 tags,
                 feature_type="building",
-                default_kind=tags.get("building", "yes"),
-                color="#deded8",
+                default_kind=building_kind,
+                color=style["wall"],
             )
             if building:
-                building["roofColor"] = "#f6f6f4"
+                building["heightMeters"] = _safe_float(tags.get("height")) or style["height"]
+                building["wallColor"] = style["wall"]
+                building["roofColor"] = style["roof"]
                 buildings.append(building)
 
         landuse_feature = _landuse_from_relation(relation, way_geometries, tags)
@@ -532,6 +564,7 @@ def _iter_gpkg_roads(conn: sqlite3.Connection, bbox: dict | None, from_cache: bo
             "source": "gpkg",
             "osmWayId": row["osm_id"],
             "kind": row["fclass"] or "unclassified",
+            "rank": ROAD_RANKS.get(row["fclass"] or "unclassified", 99),
             "name": row["name"] or row["ref"],
             "surface": None,
             "lanes": None,
@@ -598,16 +631,18 @@ def _iter_gpkg_buildings(conn: sqlite3.Connection, bbox: dict | None, from_cache
             if len(exterior) < 3:
                 continue
             feature_id = f"gpkg-building-{row['fid']}-{polygon_index}"
+            building_kind = row["type"] or row["fclass"] or "building"
+            building_style = _building_style(building_kind)
             yield {
                 "id": feature_id,
                 "source": "gpkg",
                 "osmWayId": row["osm_id"],
-                "kind": row["type"] or row["fclass"] or "building",
+                "kind": building_kind,
                 "name": row["name"],
-                "heightMeters": 12,
+                "heightMeters": building_style["height"],
                 "levels": None,
-                "roofColor": "#f6f6f4",
-                "wallColor": "#deded8",
+                "roofColor": building_style["roof"],
+                "wallColor": building_style["wall"],
                 "footprint": _coords_to_points(exterior, include_elevation=False),
                 "holes": [_coords_to_points(ring, include_elevation=False) for ring in holes],
             }
@@ -998,6 +1033,7 @@ def _road_from_osm_way(way_id: str, coordinates: list[dict], tags: dict) -> dict
         "source": "osm",
         "osmWayId": way_id,
         "kind": highway_type,
+        "rank": ROAD_RANKS.get(highway_type, 99),
         "name": tags.get("name") or tags.get("ref"),
         "surface": tags.get("surface"),
         "lanes": tags.get("lanes"),
@@ -1031,21 +1067,24 @@ def _building_from_osm_way(way_id: str, coordinates: list[dict], tags: dict) -> 
     if len(ring) < 4:
         return None
 
+    building_kind = tags.get("building", "yes")
     levels = _safe_float(tags.get("building:levels"))
-    height = _safe_float(tags.get("height")) or (levels * 3.4 if levels else 12)
+    height = _safe_float(tags.get("height")) or (levels * 3.4 if levels else _building_style(building_kind)["height"])
     if height <= 0:
-        height = 12
+        height = _building_style(building_kind)["height"]
+
+    building_style = _building_style(building_kind)
 
     return {
         "id": f"osm-building-{way_id}",
         "source": "osm",
         "osmWayId": way_id,
-        "kind": tags.get("building", "yes"),
+        "kind": building_kind,
         "name": tags.get("name"),
         "heightMeters": round(height, 2),
         "levels": levels,
-        "roofColor": "#f6f6f4",
-        "wallColor": "#deded8",
+        "roofColor": building_style["roof"],
+        "wallColor": building_style["wall"],
         "footprint": [_point_record(point, include_elevation=False) for point in ring[:-1]],
         "holes": [],
     }
@@ -1281,6 +1320,29 @@ def _label_anchor(coordinates: list[dict]) -> dict | None:
         "latitude": round(next_point["latitude"], 7),
         "angleDegrees": round(angle, 3),
     }
+
+
+def _building_style(kind: str | None) -> dict:
+    normalized = (kind or "building").lower()
+    if normalized in BUILDING_KIND_STYLES:
+        return BUILDING_KIND_STYLES[normalized]
+
+    if any(token in normalized for token in ("school", "college", "university")):
+        return BUILDING_KIND_STYLES["school"]
+    if any(token in normalized for token in ("hospital", "clinic", "medical")):
+        return BUILDING_KIND_STYLES["hospital"]
+    if any(token in normalized for token in ("office", "government", "public")):
+        return BUILDING_KIND_STYLES["office"]
+    if any(token in normalized for token in ("warehouse", "depot", "factory", "industrial")):
+        return BUILDING_KIND_STYLES["industrial"]
+    if any(token in normalized for token in ("shop", "retail", "mall", "supermarket")):
+        return BUILDING_KIND_STYLES["retail"]
+    if any(token in normalized for token in ("apartment", "apartments")):
+        return BUILDING_KIND_STYLES["apartments"]
+    if any(token in normalized for token in ("house", "residential", "detached")):
+        return BUILDING_KIND_STYLES["residential"]
+
+    return BUILDING_KIND_STYLES["building"]
 
 
 def _water_kind(tags: dict) -> str | None:

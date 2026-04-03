@@ -24,9 +24,11 @@ const districtOptions = computed(() =>
 const suggestions = computed(() => buildSearchSuggestions(publicState.crossings, publicFilters.q, 5))
 const isDetailRoute = computed(() => route.name === 'public-crossing-detail')
 const isMapRoute = computed(() => route.name === 'public-map')
-const showDiscoveryChrome = computed(() => !isDetailRoute.value && !isMapRoute.value)
+const isSceneRoute = computed(() => route.name === 'public-scene-3d')
+const showDiscoveryChrome = computed(() => !isDetailRoute.value && !isMapRoute.value && !isSceneRoute.value)
 
 const activeSection = computed(() => {
+  if (route.name === 'public-scene-3d') return 'Map 3D'
   if (route.name === 'public-crossing-detail') return 'Chi tiết điểm'
   if (route.name === 'public-directory') return 'Danh mục'
   if (route.name === 'public-insights') return 'Cảnh báo'
@@ -103,6 +105,13 @@ function clearFilters() {
           to="/insights"
         >
           Cảnh báo
+        </RouterLink>
+        <RouterLink
+          class="nav-pill"
+          :class="{ active: route.name === 'public-scene-3d' }"
+          to="/scene-3d"
+        >
+          Map 3D
         </RouterLink>
       </nav>
 

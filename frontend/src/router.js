@@ -21,14 +21,15 @@ const router = createRouter({
       component: PublicLayout,
       children: [
         { path: '', name: 'public-map', component: PublicMapPage },
+        {
+          path: 'scene-3d',
+          name: 'public-scene-3d',
+          component: () => import('./pages/PublicThreeScenePage.vue'),
+        },
         { path: 'directory', name: 'public-directory', component: PublicDirectoryPage },
         { path: 'insights', name: 'public-insights', component: PublicInsightsPage },
         { path: 'crossings/:id', name: 'public-crossing-detail', component: PublicCrossingDetailPage },
       ],
-    },
-    {
-      path: '/scene-3d',
-      redirect: { name: 'public-map' },
     },
     {
       path: '/admin/login',
