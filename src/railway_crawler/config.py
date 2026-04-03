@@ -14,6 +14,8 @@ DEFAULT_CONFIG = {
         "queries": [
             "Biên Hòa đường sắt tai nạn",
             "Đồng Nai đường sắt tai nạn",
+            "Biên Hòa đường ngang đường sắt",
+            "Đồng Nai tàu hỏa va chạm",
         ],
     },
     "schedules": {
@@ -21,8 +23,8 @@ DEFAULT_CONFIG = {
         "stations": ["Biên Hòa", "Dĩ An", "Long Khánh", "Sài Gòn"],
     },
     "matching": {
-        "crossing_keywords": ["đường ngang", "lối đi tự mở", "gác chắn"],
-        "severe_keywords": ["tử vong", "nghiêm trọng", "va chạm", "tai nạn"],
+        "crossing_keywords": ["đường ngang", "lối đi tự mở", "gác chắn", "tàu hỏa", "đường sắt"],
+        "severe_keywords": ["tử vong", "nghiêm trọng", "va chạm", "tai nạn", "lật xe"],
     },
 }
 

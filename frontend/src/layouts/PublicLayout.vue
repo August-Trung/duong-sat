@@ -3,6 +3,7 @@ import { computed, watch } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 import MetricCards from '../components/MetricCards.vue'
 import {
+  loadCrossingDetail,
   loadPublicOverview,
   locateUser,
   publicFilters,
@@ -21,8 +22,11 @@ const districtOptions = computed(() =>
 )
 
 const suggestions = computed(() => buildSearchSuggestions(publicState.crossings, publicFilters.q, 5))
+const isDetailRoute = computed(() => route.name === 'public-crossing-detail')
+const showDiscoveryChrome = computed(() => !isDetailRoute.value)
 
 const activeSection = computed(() => {
+  if (route.name === 'public-crossing-detail') return 'Chi tiết điểm giao cắt'
   if (route.name === 'public-directory') return 'Danh mục điểm'
   if (route.name === 'public-insights') return 'Cảnh báo và sự cố'
   return 'Bản đồ trực quan'
@@ -32,8 +36,19 @@ watch(
   () => [publicFilters.q, publicFilters.risk_level, publicFilters.barrier_type],
   async () => {
     await loadPublicOverview(publicFilters)
+    if (isDetailRoute.value && route.params.id) {
+      await loadCrossingDetail(Number(route.params.id))
+    }
   },
   { immediate: true }
+)
+
+watch(
+  () => route.params.id,
+  async (value) => {
+    if (!isDetailRoute.value || !value) return
+    await loadCrossingDetail(Number(value))
+  }
 )
 
 function applySuggestion(suggestion) {
@@ -57,7 +72,7 @@ function clearFilters() {
 </script>
 
 <template>
-  <div class="public-shell">
+  <div class="public-shell" :class="{ 'public-shell--detail': isDetailRoute }">
     <header class="public-header">
       <div class="public-header__brand">
         <div class="brand-mark">BH</div>
@@ -94,7 +109,7 @@ function clearFilters() {
     </header>
 
     <main class="public-main">
-      <section class="hero-panel">
+      <section v-if="showDiscoveryChrome" class="hero-panel">
         <div class="hero-panel__copy">
           <p class="micro-label">Trung tâm tra cứu công khai</p>
           <h2>Theo dõi giao cắt và vùng rủi ro rõ ràng, nhanh gọn</h2>
@@ -115,7 +130,7 @@ function clearFilters() {
         </div>
       </section>
 
-      <section class="command-deck">
+      <section v-if="showDiscoveryChrome" class="command-deck">
         <div class="command-deck__primary">
           <label class="field field--search">
             <span>Tìm nhanh điểm giao cắt</span>
@@ -259,6 +274,17 @@ function clearFilters() {
             Bật vị trí hoặc dùng bộ lọc phía trên để thu hẹp nhanh các điểm cần theo dõi.
           </p>
           <p v-if="publicState.error" class="error-text">{{ publicState.error }}</p>
+        </div>
+      </section>
+
+      <section v-else class="detail-context-bar">
+        <div>
+          <p class="micro-label">Đang xem chi tiết</p>
+          <strong>Chi tiết điểm giao cắt dành cho hiện trường</strong>
+        </div>
+        <div class="hero-inline-stats">
+          <RouterLink class="secondary-button" to="/">Quay lại bản đồ</RouterLink>
+          <RouterLink class="secondary-button" to="/directory">Danh mục</RouterLink>
         </div>
       </section>
 

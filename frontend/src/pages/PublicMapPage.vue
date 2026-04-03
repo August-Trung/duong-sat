@@ -1,5 +1,6 @@
 <script setup>
 import { computed, reactive } from 'vue'
+import { useRouter } from 'vue-router'
 import MapPanel from '../components/MapPanel.vue'
 import {
   loadCrossingDetail,
@@ -19,10 +20,12 @@ import {
   haversineDistanceMeters,
   incidentsForCrossing,
   nearestCrossings,
+  riskSummaryForCrossing,
   safetyGuidance,
   schedulesForCrossing,
 } from '../utils/publicHelpers'
 
+const router = useRouter()
 const mapMode = reactive({ value: 'light' })
 const visibleLevels = reactive({
   very_high: true,
@@ -78,6 +81,9 @@ const selectedNearby = computed(() => {
 const selectedGuidance = computed(() =>
   safetyGuidance(publicState.selectedCrossing, publicState.incidents)
 )
+const selectedRiskSummary = computed(() =>
+  riskSummaryForCrossing(publicState.selectedCrossing, publicState.incidents, publicState.schedules)
+)
 const highlightedIds = computed(() => [
   ...nearest.value.map((item) => item.id),
   ...areaMatches.value.map((item) => item.id),
@@ -126,6 +132,11 @@ function applyPickedLocation(location) {
   })
   useUserLocationAsArea()
   uiState.pickingLocation = false
+}
+
+async function openCrossingDetail(id) {
+  await loadCrossingDetail(id)
+  router.push({ name: 'public-crossing-detail', params: { id } })
 }
 </script>
 
@@ -261,6 +272,16 @@ function applyPickedLocation(location) {
           </div>
 
           <article class="content-block">
+            <h4>Tóm tắt rủi ro</h4>
+            <div class="stack-list">
+              <div class="stack-item stack-item--highlight">
+                <strong>{{ selectedRiskSummary.label }}</strong>
+                <span>{{ selectedRiskSummary.message }}</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="content-block">
             <h4>Khuyến nghị an toàn</h4>
             <div class="stack-list">
               <div v-for="tip in selectedGuidance" :key="tip" class="stack-item">
@@ -272,14 +293,17 @@ function applyPickedLocation(location) {
           <article class="content-block">
             <h4>Chuyến tàu sắp tới</h4>
             <div class="stack-list">
-              <div
-                v-for="schedule in selectedUpcomingSchedules"
-                :key="`${schedule.id}-${schedule.pass_time}`"
-                class="stack-item"
-              >
-                <strong>{{ schedule.pass_time }}</strong>
-                <span>{{ schedule.train_no }} · {{ schedule.direction }}</span>
-              </div>
+                <div
+                  v-for="schedule in selectedUpcomingSchedules"
+                  :key="`${schedule.id}-${schedule.pass_time}`"
+                  class="stack-item"
+                >
+                  <strong>{{ schedule.pass_time }}</strong>
+                  <span>
+                    {{ schedule.train_no }} · {{ schedule.direction }}
+                    <template v-if="schedule.eta_label"> · {{ schedule.eta_label }}</template>
+                  </span>
+                </div>
               <div v-if="!selectedUpcomingSchedules.length" class="empty-note">
                 Chưa có dữ liệu lịch tàu gần nhất.
               </div>
@@ -299,10 +323,20 @@ function applyPickedLocation(location) {
               </div>
             </div>
           </article>
+
+          <div class="toolbar-actions">
+            <button
+              class="primary-button"
+              type="button"
+              @click="openCrossingDetail(publicState.selectedCrossing.id)"
+            >
+              Xem chi tiết điểm
+            </button>
+          </div>
         </template>
 
         <div v-else class="empty-note">
-          Hãy chọn một điểm trên bản đồ để xem hồ sơ chi tiết, lịch tàu và khuyến nghị an toàn.
+          Hãy chọn một điểm trên bản đồ để xem chi tiết điểm, lịch tàu và khuyến nghị an toàn.
         </div>
       </section>
 
@@ -319,7 +353,7 @@ function applyPickedLocation(location) {
             v-for="item in nearest"
             :key="item.id"
             class="list-button"
-            @click="loadCrossingDetail(item.id)"
+            @click="openCrossingDetail(item.id)"
           >
             <div>
               <strong>{{ item.name }}</strong>
@@ -347,7 +381,7 @@ function applyPickedLocation(location) {
             v-for="item in areaMatches.slice(0, 6)"
             :key="item.id"
             class="list-button"
-            @click="loadCrossingDetail(item.id)"
+            @click="openCrossingDetail(item.id)"
           >
             <div>
               <strong>{{ item.name }}</strong>
@@ -377,7 +411,7 @@ function applyPickedLocation(location) {
             v-for="crossing in selectedNearby"
             :key="crossing.id"
             class="list-button"
-            @click="loadCrossingDetail(crossing.id)"
+            @click="openCrossingDetail(crossing.id)"
           >
             <div>
               <strong>{{ crossing.name }}</strong>

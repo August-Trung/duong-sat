@@ -370,7 +370,7 @@ onBeforeUnmount(() => {
       <div class="section-head">
         <div>
           <p class="micro-label">Điểm giao cắt</p>
-          <h3>Hồ sơ 360, thao tác hàng loạt và ảnh hiện trường</h3>
+          <h3>Chi tiết điểm, thao tác hàng loạt và ảnh hiện trường</h3>
         </div>
         <span class="soft-badge soft-badge--accent">{{ rows.length }} bản ghi</span>
       </div>
@@ -412,7 +412,7 @@ onBeforeUnmount(() => {
         <div class="section-head">
           <div>
             <p class="micro-label">Danh sách</p>
-            <h3>Chọn điểm để mở hồ sơ 360</h3>
+            <h3>Chọn điểm để xem chi tiết</h3>
           </div>
         </div>
 
@@ -431,7 +431,7 @@ onBeforeUnmount(() => {
             </div>
 
             <div class="toolbar-actions">
-              <button class="secondary-button" @click="loadProfile(item.id)">Hồ sơ</button>
+              <button class="secondary-button" @click="loadProfile(item.id)">Chi tiết</button>
               <button class="secondary-button" :disabled="!canEdit" @click="startEdit(item)">Sửa</button>
               <button
                 class="secondary-button danger-text"
@@ -503,7 +503,7 @@ onBeforeUnmount(() => {
       <section class="content-card admin-profile-card-large">
         <div class="section-head">
           <div>
-            <p class="micro-label">Hồ sơ 360</p>
+            <p class="micro-label">Chi tiết điểm</p>
             <h3>{{ selectedProfile?.name || 'Chọn một điểm để xem chi tiết' }}</h3>
           </div>
         </div>

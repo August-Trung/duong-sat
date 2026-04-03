@@ -3,6 +3,19 @@ from __future__ import annotations
 import json
 import sqlite3
 
+GENERIC_LOCATION_TOKENS = {
+    "bien hoa",
+    "biên hòa",
+    "dong nai",
+    "đồng nai",
+    "residential",
+    "service",
+    "footway",
+    "path",
+    "track",
+    "unclassified",
+}
+
 
 def compute_risk(conn: sqlite3.Connection) -> int:
     crossings = conn.execute("SELECT * FROM crossings ORDER BY code").fetchall()
@@ -59,7 +72,10 @@ def export_top_risks(conn: sqlite3.Connection, limit: int) -> list[sqlite3.Row]:
 
 
 def _build_evidence(conn: sqlite3.Connection, crossing: sqlite3.Row) -> dict:
-    location_tokens = [crossing["name"], crossing["ward"], crossing["district"], crossing["city"]]
+    alias_tokens = [part.strip() for part in str(crossing["alias_text"] or "").split("|") if part.strip()] if "alias_text" in crossing.keys() else []
+    location_tokens = _useful_location_tokens(
+        [crossing["name"], crossing["address"], *alias_tokens, crossing["ward"], crossing["district"]]
+    )
     where_clauses = []
     params = []
     for token in location_tokens:
@@ -116,6 +132,28 @@ def _build_evidence(conn: sqlite3.Connection, crossing: sqlite3.Row) -> dict:
         "crossing_type": crossing["crossing_type"],
         "station_keyword": station_keyword,
     }
+
+
+def _useful_location_tokens(tokens: list[object]) -> list[str]:
+    seen: set[str] = set()
+    useful: list[str] = []
+    for token in tokens:
+        value = str(token or "").strip()
+        normalized = value.lower()
+        if not value or len(normalized) < 4:
+            continue
+        if normalized in GENERIC_LOCATION_TOKENS:
+            continue
+        if normalized.startswith("giao cắt "):
+            normalized = normalized.replace("giao cắt ", "", 1).strip()
+            value = value[9:].strip()
+        if not value or normalized in GENERIC_LOCATION_TOKENS:
+            continue
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        useful.append(value)
+    return useful
 
 
 def _guess_station_keyword(crossing_name: str) -> str | None:

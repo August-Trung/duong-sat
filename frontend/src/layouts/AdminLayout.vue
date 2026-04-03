@@ -25,47 +25,24 @@ async function handleLogout() {
       <div class="admin-brand">
         <div class="brand-mark">RW</div>
         <div>
-          <p class="micro-label">Không gian vận hành nội bộ</p>
-          <h1>RailWatch Admin</h1>
+          <h2>RailWatch Admin</h2>
         </div>
       </div>
-
-      <p class="body-copy">
-        Bảng điều phối dành cho đội vận hành dữ liệu: kiểm soát điểm giao cắt, lịch tàu, sự cố,
-        ảnh hiện trường và phân quyền người dùng trên cùng một sản phẩm thống nhất.
-      </p>
 
       <nav class="admin-nav">
         <RouterLink class="nav-pill nav-pill--block" :class="{ active: route.name === 'admin-dashboard' }" to="/admin">
           Tổng quan
         </RouterLink>
-        <RouterLink
-          class="nav-pill nav-pill--block"
-          :class="{ active: route.name === 'admin-crossings' }"
-          to="/admin/crossings"
-        >
+        <RouterLink class="nav-pill nav-pill--block" :class="{ active: route.name === 'admin-crossings' }" to="/admin/crossings">
           Điểm giao cắt
         </RouterLink>
-        <RouterLink
-          class="nav-pill nav-pill--block"
-          :class="{ active: route.name === 'admin-schedules' }"
-          to="/admin/schedules"
-        >
+        <RouterLink class="nav-pill nav-pill--block" :class="{ active: route.name === 'admin-schedules' }" to="/admin/schedules">
           Giờ tàu
         </RouterLink>
-        <RouterLink
-          class="nav-pill nav-pill--block"
-          :class="{ active: route.name === 'admin-incidents' }"
-          to="/admin/incidents"
-        >
+        <RouterLink class="nav-pill nav-pill--block" :class="{ active: route.name === 'admin-incidents' }" to="/admin/incidents">
           Sự cố
         </RouterLink>
-        <RouterLink
-          v-if="canManageUsers"
-          class="nav-pill nav-pill--block"
-          :class="{ active: route.name === 'admin-users' }"
-          to="/admin/users"
-        >
+        <RouterLink v-if="canManageUsers" class="nav-pill nav-pill--block" :class="{ active: route.name === 'admin-users' }" to="/admin/users">
           Người dùng
         </RouterLink>
         <RouterLink class="nav-pill nav-pill--block nav-pill--ghost" to="/">

@@ -1,13 +1,17 @@
 <script setup>
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { loadCrossingDetail, publicFilters, publicState } from '../stores/publicData'
 import {
   applyCrossingFilters,
   formatDistance,
   haversineDistanceMeters,
   incidentsForCrossing,
+  riskSummaryForCrossing,
   schedulesForCrossing,
 } from '../utils/publicHelpers'
+
+const router = useRouter()
 
 const filteredRows = computed(() =>
   applyCrossingFilters(publicState.crossings, publicFilters, {
@@ -30,6 +34,10 @@ const selectedSchedules = computed(() =>
   schedulesForCrossing(publicState.selectedCrossing, publicState.schedules, 6)
 )
 
+const selectedRiskSummary = computed(() =>
+  riskSummaryForCrossing(publicState.selectedCrossing, publicState.incidents, publicState.schedules)
+)
+
 function riskLabel(level) {
   return {
     very_high: 'Rất cao',
@@ -45,6 +53,11 @@ function crossingDistance(crossing) {
     haversineDistanceMeters(publicState.userLocation || publicState.areaAlert.center, crossing)
   )
 }
+
+async function openCrossingDetail(id) {
+  await loadCrossingDetail(id)
+  router.push({ name: 'public-crossing-detail', params: { id } })
+}
 </script>
 
 <template>
@@ -54,7 +67,7 @@ function crossingDistance(crossing) {
         v-for="item in groupedRows.priority"
         :key="item.id"
         class="feature-card"
-        @click="loadCrossingDetail(item.id)"
+        @click="openCrossingDetail(item.id)"
       >
         <div class="feature-card__head">
           <span class="micro-label">Ưu tiên theo bộ lọc</span>
@@ -84,7 +97,7 @@ function crossingDistance(crossing) {
             :key="item.id"
             class="catalog-card"
             :class="{ active: item.id === publicState.selectedCrossingId }"
-            @click="loadCrossingDetail(item.id)"
+            @click="openCrossingDetail(item.id)"
           >
             <div class="catalog-card__top">
               <span class="risk-chip compact" :class="item.risk_level">{{ riskLabel(item.risk_level) }}</span>
@@ -109,7 +122,7 @@ function crossingDistance(crossing) {
         <section class="content-card sticky-panel">
           <div class="section-head">
             <div>
-              <p class="micro-label">Hồ sơ điểm</p>
+              <p class="micro-label">Chi tiết điểm</p>
               <h3>{{ publicState.selectedCrossing?.name || 'Chọn một điểm để xem chi tiết' }}</h3>
             </div>
           </div>
@@ -133,6 +146,16 @@ function crossingDistance(crossing) {
                 <strong>{{ crossingDistance(publicState.selectedCrossing) }}</strong>
               </article>
             </div>
+
+            <article class="content-block">
+              <h4>Tóm tắt rủi ro</h4>
+              <div class="stack-list">
+                <div class="stack-item stack-item--highlight">
+                  <strong>{{ selectedRiskSummary.label }}</strong>
+                  <span>{{ selectedRiskSummary.message }}</span>
+                </div>
+              </div>
+            </article>
 
             <article class="content-block">
               <h4>Lịch tàu gần nhất</h4>
@@ -168,10 +191,20 @@ function crossingDistance(crossing) {
               <h4>Ghi chú</h4>
               <p class="body-copy">{{ publicState.selectedCrossing.notes || 'Chưa có ghi chú bổ sung.' }}</p>
             </article>
+
+            <div class="toolbar-actions">
+              <button
+                class="primary-button"
+                type="button"
+                @click="openCrossingDetail(publicState.selectedCrossing.id)"
+              >
+                Xem chi tiết điểm
+              </button>
+            </div>
           </template>
 
           <div v-else class="empty-note">
-            Chọn một thẻ trong danh mục để xem hồ sơ điểm, lịch tàu và dữ liệu sự cố.
+            Chọn một thẻ trong danh mục để xem chi tiết điểm, lịch tàu và dữ liệu sự cố.
           </div>
         </section>
       </aside>

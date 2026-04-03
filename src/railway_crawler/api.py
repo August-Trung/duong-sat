@@ -17,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from railway_crawler.db import ROLE_VALUES, hash_password, init_db, verify_password
+from railway_crawler.news import resolve_article_assets
 from railway_crawler.scene3d import DEFAULT_OUTPUT_DIR, export_scene_bundle, read_scene_manifest, read_scene_tile
 
 
@@ -24,6 +25,18 @@ APP_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DB_PATH = str(APP_ROOT / "data" / "railway.db")
 UPLOADS_ROOT = APP_ROOT / "data" / "uploads"
 SESSION_HOURS = 12
+GENERIC_ARTICLE_TOKENS = {
+    "bien hoa",
+    "biên hòa",
+    "dong nai",
+    "đồng nai",
+    "residential",
+    "service",
+    "footway",
+    "path",
+    "track",
+    "unclassified",
+}
 
 ROLE_PERMISSIONS = {
     "viewer": {
@@ -960,13 +973,24 @@ def _get_crossing_schedules(conn: sqlite3.Connection, crossing: dict) -> list[di
         """,
         (station_name,),
     ).fetchall()
-    return [dict(row) for row in rows]
+    return [_serialize_schedule_with_eta(dict(row)) for row in rows]
 
 
 def _get_crossing_articles(conn: sqlite3.Connection, crossing: dict) -> list[dict]:
     params: list[object] = []
     clauses = []
-    for token in [crossing.get("name"), crossing.get("ward"), crossing.get("district"), crossing.get("city")]:
+    alias_tokens = []
+    if crossing.get("alias_text"):
+        alias_tokens.extend([part.strip() for part in str(crossing.get("alias_text")).split("|") if part.strip()])
+    for token in _useful_article_tokens(
+        [
+            crossing.get("name"),
+            crossing.get("address"),
+            *alias_tokens,
+            crossing.get("ward"),
+            crossing.get("district"),
+        ]
+    ):
         if not token:
             continue
         clauses.append("(lower(title) LIKE ? OR lower(summary) LIKE ? OR lower(location_hint) LIKE ?)")
@@ -976,7 +1000,7 @@ def _get_crossing_articles(conn: sqlite3.Connection, crossing: dict) -> list[dic
         return []
     rows = conn.execute(
         """
-        SELECT title, url, publisher, published_at, summary, severity_score
+        SELECT title, url, external_url, image_url, publisher, published_at, summary, severity_score
         FROM news_articles
         WHERE """
         + " OR ".join(clauses)
@@ -986,7 +1010,40 @@ def _get_crossing_articles(conn: sqlite3.Connection, crossing: dict) -> list[dic
         """,
         params,
     ).fetchall()
-    return [dict(row) for row in rows]
+    articles = [dict(row) for row in rows]
+    return [_enrich_article_record(conn, article) for article in articles]
+
+
+def _enrich_article_record(conn: sqlite3.Connection, article: dict) -> dict:
+    needs_external = not str(article.get("external_url") or "").strip() or str(article.get("external_url") or "").startswith("https://news.google.com/")
+    current_image = str(article.get("image_url") or "").strip()
+    needs_image = (
+        not current_image
+        or current_image.startswith("data:image/")
+        or "googleusercontent.com" in current_image
+    )
+    if not needs_external and not needs_image:
+        return article
+
+    try:
+        assets = resolve_article_assets(str(article.get("url") or ""), timeout=12)
+    except Exception:
+        return article
+
+    external_url = assets.get("external_url") or article.get("external_url")
+    image_url = assets.get("image_url") or article.get("image_url")
+    conn.execute(
+        """
+        UPDATE news_articles
+        SET external_url = ?, image_url = ?
+        WHERE url = ?
+        """,
+        (external_url, image_url, article.get("url")),
+    )
+    conn.commit()
+    article["external_url"] = external_url
+    article["image_url"] = image_url
+    return article
 
 
 def _get_crossing_incidents(conn: sqlite3.Connection, crossing_id: int) -> list[dict]:
@@ -1225,6 +1282,26 @@ def _list_admin_schedules(conn: sqlite3.Connection) -> list[dict]:
     return [dict(row) for row in rows]
 
 
+def _useful_article_tokens(tokens: list[object]) -> list[str]:
+    seen: set[str] = set()
+    useful: list[str] = []
+    for token in tokens:
+        value = str(token or "").strip()
+        normalized = value.lower()
+        if not value or len(normalized) < 4:
+            continue
+        if normalized.startswith("giao cắt "):
+            normalized = normalized.replace("giao cắt ", "", 1).strip()
+            value = value[9:].strip()
+        if not value or normalized in GENERIC_ARTICLE_TOKENS:
+            continue
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        useful.append(value)
+    return useful
+
+
 def _list_public_schedules(conn: sqlite3.Connection, limit: int = 100) -> list[dict]:
     rows = conn.execute(
         """
@@ -1236,7 +1313,47 @@ def _list_public_schedules(conn: sqlite3.Connection, limit: int = 100) -> list[d
         """,
         (limit,),
     ).fetchall()
-    return [dict(row) for row in rows]
+    return [_serialize_schedule_with_eta(dict(row)) for row in rows]
+
+
+def _serialize_schedule_with_eta(row: dict) -> dict:
+    next_pass_at, eta_minutes = _next_schedule_occurrence(row["pass_time"], int(row.get("day_offset") or 0))
+    row["next_pass_at"] = next_pass_at.isoformat() if next_pass_at else None
+    row["eta_minutes"] = eta_minutes
+    row["eta_label"] = _eta_label(eta_minutes)
+    return row
+
+
+def _next_schedule_occurrence(pass_time: str, day_offset: int) -> tuple[datetime | None, int | None]:
+    try:
+        hour_text, minute_text = pass_time.split(":", maxsplit=1)
+        hour = int(hour_text)
+        minute = int(minute_text)
+    except (ValueError, AttributeError):
+        return None, None
+
+    now = datetime.now()
+    candidate = now.replace(hour=hour, minute=minute, second=0, microsecond=0) + timedelta(days=day_offset)
+    if candidate < now - timedelta(minutes=1):
+        candidate += timedelta(days=1)
+    eta_minutes = max(0, int((candidate - now).total_seconds() // 60))
+    return candidate, eta_minutes
+
+
+def _eta_label(eta_minutes: int | None) -> str | None:
+    if eta_minutes is None:
+        return None
+    if eta_minutes <= 5:
+        return "Sắp qua"
+    if eta_minutes <= 30:
+        return f"{eta_minutes} phút tới"
+    if eta_minutes <= 120:
+        return f"{eta_minutes} phút nữa"
+    if eta_minutes < 24 * 60:
+        return "Hôm nay"
+    if eta_minutes < 48 * 60:
+        return "Ngày mai"
+    return f"+{eta_minutes // (24 * 60)} ngày"
 
 
 def _list_admin_incidents(conn: sqlite3.Connection) -> list[dict]:

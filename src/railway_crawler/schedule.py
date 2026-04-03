@@ -8,19 +8,26 @@ from bs4 import BeautifulSoup
 
 
 TIME_RE = re.compile(r"^(?P<time>\d{2}:\d{2})(?:\s*\(ngày \+(?P<offset>\d+)\))?$")
+REQUEST_HEADERS = {
+    "User-Agent": "BienHoaRailWatch/0.1 (+https://giotaugiave.dsvn.vn/)",
+    "Accept-Language": "vi,en;q=0.8",
+}
 
 
 def fetch_and_store_schedules(conn: sqlite3.Connection, config: dict) -> int:
     source_url = config["schedules"]["source_url"]
-    monitored_stations = set(config["schedules"]["stations"])
+    monitored_stations = {str(item).strip() for item in config["schedules"]["stations"]}
 
-    response = requests.get(source_url, timeout=30)
+    response = requests.get(source_url, timeout=30, headers=REQUEST_HEADERS)
     response.raise_for_status()
+    response.encoding = response.encoding or "utf-8"
     soup = BeautifulSoup(response.text, "html.parser")
 
     inserted = 0
     for route_name, direction, table in _iter_schedule_tables(soup):
         rows = table.find_all("tr")
+        if not rows:
+            continue
         header_cells = [cell.get_text(" ", strip=True) for cell in rows[0].find_all(["th", "td"])]
         train_numbers = header_cells[2:]
 

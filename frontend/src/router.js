@@ -5,6 +5,7 @@ import AdminLayout from './layouts/AdminLayout.vue'
 import PublicMapPage from './pages/PublicMapPage.vue'
 import PublicDirectoryPage from './pages/PublicDirectoryPage.vue'
 import PublicInsightsPage from './pages/PublicInsightsPage.vue'
+import PublicCrossingDetailPage from './pages/PublicCrossingDetailPage.vue'
 import AdminLoginPage from './pages/AdminLoginPage.vue'
 import AdminDashboardPage from './pages/AdminDashboardPage.vue'
 import AdminCrossingsPage from './pages/AdminCrossingsPage.vue'
@@ -22,6 +23,7 @@ const router = createRouter({
         { path: '', name: 'public-map', component: PublicMapPage },
         { path: 'directory', name: 'public-directory', component: PublicDirectoryPage },
         { path: 'insights', name: 'public-insights', component: PublicInsightsPage },
+        { path: 'crossings/:id', name: 'public-crossing-detail', component: PublicCrossingDetailPage },
       ],
     },
     {
