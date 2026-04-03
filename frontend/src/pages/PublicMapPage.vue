@@ -1,8 +1,9 @@
 <script setup>
-import { computed, reactive } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import MapPanel from '../components/MapPanel.vue'
 import {
+  clearPublicError,
   loadCrossingDetail,
   locateUser,
   publicFilters,
@@ -15,6 +16,7 @@ import {
 import {
   applyCrossingFilters,
   crossingsInsideArea,
+  describeUserLocation,
   formatCoordinate,
   formatDistance,
   haversineDistanceMeters,
@@ -42,6 +44,9 @@ const overlays = reactive({
 const uiState = reactive({
   pickingLocation: false,
 })
+const toastMessage = ref('')
+
+let toastTimer = null
 
 const distanceSource = computed(
   () => publicState.userLocation || publicState.areaAlert.center || publicState.selectedCrossing
@@ -89,6 +94,21 @@ const highlightedIds = computed(() => [
   ...areaMatches.value.map((item) => item.id),
 ])
 
+function showToast(message) {
+  toastMessage.value = message
+  if (toastTimer) clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => {
+    toastMessage.value = ''
+    clearPublicError()
+  }, 4200)
+}
+
+function dismissToast() {
+  if (toastTimer) clearTimeout(toastTimer)
+  toastMessage.value = ''
+  clearPublicError()
+}
+
 function riskLabel(level) {
   return {
     very_high: 'Rất cao',
@@ -117,7 +137,7 @@ async function locateAndUseArea() {
     await locateUser()
     useUserLocationAsArea()
   } catch {
-    // State stores error message.
+    // Shared state already stores the message.
   }
 }
 
@@ -138,11 +158,30 @@ async function openCrossingDetail(id) {
   await loadCrossingDetail(id)
   router.push({ name: 'public-crossing-detail', params: { id } })
 }
+
+watch(
+  () => publicState.error,
+  (value) => {
+    if (value) showToast(value)
+  }
+)
+
+onBeforeUnmount(() => {
+  if (toastTimer) clearTimeout(toastTimer)
+})
 </script>
 
 <template>
   <section class="experience-grid">
     <section class="map-stage">
+      <div v-if="toastMessage" class="map-toast map-toast--error" role="alert">
+        <div>
+          <strong>Không thể định vị</strong>
+          <span>{{ toastMessage }}</span>
+        </div>
+        <button class="map-toast__close" type="button" @click="dismissToast">Đóng</button>
+      </div>
+
       <div class="section-head">
         <div>
           <p class="micro-label">Không gian trực quan</p>
@@ -178,7 +217,7 @@ async function openCrossingDetail(id) {
         </div>
 
         <div class="toolbar-actions">
-          <label class="field field--compact">
+          <label class="field field--compact map-toolbar__radius">
             <span>Bán kính</span>
             <select
               :value="publicState.areaAlert.radiusMeters"
@@ -205,6 +244,18 @@ async function openCrossingDetail(id) {
           >
             Dùng điểm đang chọn làm tâm
           </button>
+        </div>
+
+        <div v-if="publicState.userLocation || uiState.pickingLocation" class="map-toolbar__feedback">
+          <p v-if="uiState.pickingLocation">Chạm lên bản đồ để chọn một vị trí làm tâm theo dõi.</p>
+          <p v-else-if="publicState.userLocation">
+            Đang dùng:
+            {{ formatCoordinate(publicState.userLocation.latitude) }},
+            {{ formatCoordinate(publicState.userLocation.longitude) }}
+            <span v-if="describeUserLocation(publicState.userLocation)">
+              · {{ describeUserLocation(publicState.userLocation) }}
+            </span>
+          </p>
         </div>
       </div>
 
@@ -239,15 +290,6 @@ async function openCrossingDetail(id) {
           >
             {{ riskLabel(publicState.selectedCrossing.risk_level) }} ·
             {{ publicState.selectedCrossing.risk_score }}
-          </span>
-        </div>
-
-        <div v-if="publicState.userLocation" class="info-banner">
-          Vị trí đang dùng:
-          {{ formatCoordinate(publicState.userLocation.latitude) }},
-          {{ formatCoordinate(publicState.userLocation.longitude) }}
-          <span v-if="publicState.userLocation.accuracy">
-            · sai số {{ formatDistance(publicState.userLocation.accuracy) }}
           </span>
         </div>
 
@@ -293,17 +335,17 @@ async function openCrossingDetail(id) {
           <article class="content-block">
             <h4>Chuyến tàu sắp tới</h4>
             <div class="stack-list">
-                <div
-                  v-for="schedule in selectedUpcomingSchedules"
-                  :key="`${schedule.id}-${schedule.pass_time}`"
-                  class="stack-item"
-                >
-                  <strong>{{ schedule.pass_time }}</strong>
-                  <span>
-                    {{ schedule.train_no }} · {{ schedule.direction }}
-                    <template v-if="schedule.eta_label"> · {{ schedule.eta_label }}</template>
-                  </span>
-                </div>
+              <div
+                v-for="schedule in selectedUpcomingSchedules"
+                :key="`${schedule.id}-${schedule.pass_time}`"
+                class="stack-item"
+              >
+                <strong>{{ schedule.pass_time }}</strong>
+                <span>
+                  {{ schedule.train_no }} · {{ schedule.direction }}
+                  <template v-if="schedule.eta_label"> · {{ schedule.eta_label }}</template>
+                </span>
+              </div>
               <div v-if="!selectedUpcomingSchedules.length" class="empty-note">
                 Chưa có dữ liệu lịch tàu gần nhất.
               </div>

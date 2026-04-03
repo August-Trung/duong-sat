@@ -51,53 +51,48 @@ async function downloadReport(type) {
 </script>
 
 <template>
-  <section class="admin-board">
-    <section class="insight-hero">
-      <article class="content-card content-card--highlight">
-        <p class="micro-label">Toàn cảnh vận hành</p>
-        <h3>Trung tâm theo dõi dữ liệu đường sắt Biên Hòa</h3>
+  <section class="admin-board admin-board--dashboard">
+    <section class="admin-overview-bar content-card">
+      <div>
+        <p class="micro-label">Bảng điều hành</p>
+        <h3>Trung tâm vận hành dữ liệu đường sắt Biên Hòa</h3>
         <p class="body-copy">
-          Tập trung vào kiểm duyệt, chất lượng dữ liệu, nhật ký thay đổi và xuất báo cáo nhanh cho
-          đội vận hành. Đây là lớp quản trị cần đủ rõ ràng để dùng hằng ngày, không chỉ để demo.
+          Theo dõi nhanh hồ sơ, cảnh báo chất lượng, nhật ký thay đổi và xuất báo cáo cho đội vận hành.
         </p>
-      </article>
+      </div>
 
-      <article class="content-card">
-        <p class="micro-label">Xuất báo cáo</p>
-        <h3>CSV sẵn sàng tải ngay</h3>
-        <div class="toolbar-actions">
-          <button
-            class="primary-button"
-            :disabled="downloading === 'crossings'"
-            @click="downloadReport('crossings')"
-          >
-            {{ downloading === 'crossings' ? 'Đang xuất...' : 'Xuất danh mục điểm' }}
-          </button>
-          <button
-            class="secondary-button"
-            :disabled="downloading === 'quality'"
-            @click="downloadReport('quality')"
-          >
-            {{ downloading === 'quality' ? 'Đang xuất...' : 'Xuất chất lượng dữ liệu' }}
-          </button>
-        </div>
-      </article>
+      <div class="toolbar-actions">
+        <button
+          class="primary-button"
+          :disabled="downloading === 'crossings'"
+          @click="downloadReport('crossings')"
+        >
+          {{ downloading === 'crossings' ? 'Đang xuất...' : 'Xuất danh mục điểm' }}
+        </button>
+        <button
+          class="secondary-button"
+          :disabled="downloading === 'quality'"
+          @click="downloadReport('quality')"
+        >
+          {{ downloading === 'quality' ? 'Đang xuất...' : 'Xuất chất lượng dữ liệu' }}
+        </button>
+      </div>
     </section>
 
     <MetricCards :summary="summary" />
 
-    <div class="admin-dashboard-grid admin-dashboard-grid--modern">
+    <div class="admin-dashboard-grid admin-dashboard-grid--dense">
       <section class="content-card">
         <div class="section-head">
           <div>
             <p class="micro-label">Cảnh báo chất lượng</p>
-            <h3>{{ overview.qualityAlerts?.length || 0 }} cảnh báo cần rà soát</h3>
+            <h3>{{ overview.qualityAlerts?.length || 0 }} mục cần rà soát</h3>
           </div>
         </div>
 
         <div class="stack-list">
           <div
-            v-for="alert in overview.qualityAlerts?.slice(0, 8)"
+            v-for="alert in overview.qualityAlerts?.slice(0, 6)"
             :key="`${alert.type}-${alert.crossing_id}-${alert.title}`"
             class="stack-item"
           >
@@ -116,20 +111,18 @@ async function downloadReport(type) {
         </div>
 
         <div class="stack-list">
-          <div v-for="log in overview.auditLogs?.slice(0, 8)" :key="log.id" class="stack-item">
+          <div v-for="log in overview.auditLogs?.slice(0, 6)" :key="log.id" class="stack-item">
             <strong>{{ log.summary }}</strong>
             <span>{{ log.username }} · {{ log.created_at }}</span>
           </div>
         </div>
       </section>
-    </div>
 
-    <div class="admin-dashboard-grid admin-dashboard-grid--modern">
       <section class="content-card">
         <div class="section-head">
           <div>
             <p class="micro-label">Ưu tiên xử lý</p>
-            <h3>Điểm rủi ro cao nhất</h3>
+            <h3>Điểm cần can thiệp sớm</h3>
           </div>
         </div>
 
@@ -141,22 +134,22 @@ async function downloadReport(type) {
           </div>
         </div>
       </section>
-
-      <section class="content-card">
-        <div class="section-head">
-          <div>
-            <p class="micro-label">Ma trận quyền</p>
-            <h3>Vai trò và khả năng truy cập</h3>
-          </div>
-        </div>
-
-        <div class="stack-list">
-          <div v-for="(permissions, role) in overview.permissionMatrix" :key="role" class="stack-item">
-            <strong>{{ roleLabel(role) }}</strong>
-            <span>{{ permissions.join(', ') }}</span>
-          </div>
-        </div>
-      </section>
     </div>
+
+    <section class="content-card">
+      <div class="section-head">
+        <div>
+          <p class="micro-label">Ma trận quyền</p>
+          <h3>Vai trò và khả năng truy cập</h3>
+        </div>
+      </div>
+
+      <div class="admin-permission-grid">
+        <div v-for="(permissions, role) in overview.permissionMatrix" :key="role" class="stack-item">
+          <strong>{{ roleLabel(role) }}</strong>
+          <span>{{ permissions.join(', ') }}</span>
+        </div>
+      </div>
+    </section>
   </section>
 </template>

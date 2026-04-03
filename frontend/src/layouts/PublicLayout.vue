@@ -23,13 +23,14 @@ const districtOptions = computed(() =>
 
 const suggestions = computed(() => buildSearchSuggestions(publicState.crossings, publicFilters.q, 5))
 const isDetailRoute = computed(() => route.name === 'public-crossing-detail')
-const showDiscoveryChrome = computed(() => !isDetailRoute.value)
+const isMapRoute = computed(() => route.name === 'public-map')
+const showDiscoveryChrome = computed(() => !isDetailRoute.value && !isMapRoute.value)
 
 const activeSection = computed(() => {
-  if (route.name === 'public-crossing-detail') return 'Chi tiết điểm giao cắt'
-  if (route.name === 'public-directory') return 'Danh mục điểm'
-  if (route.name === 'public-insights') return 'Cảnh báo và sự cố'
-  return 'Bản đồ trực quan'
+  if (route.name === 'public-crossing-detail') return 'Chi tiết điểm'
+  if (route.name === 'public-directory') return 'Danh mục'
+  if (route.name === 'public-insights') return 'Cảnh báo'
+  return 'Bản đồ'
 })
 
 watch(
@@ -72,12 +73,15 @@ function clearFilters() {
 </script>
 
 <template>
-  <div class="public-shell" :class="{ 'public-shell--detail': isDetailRoute }">
+  <div
+    class="public-shell"
+    :class="{ 'public-shell--detail': isDetailRoute, 'public-shell--map': isMapRoute }"
+  >
     <header class="public-header">
       <div class="public-header__brand">
         <div class="brand-mark">BH</div>
         <div>
-          <p class="micro-label">Nền tảng giám sát giao cắt đường sắt</p>
+          <p class="micro-label">Giám sát giao cắt đường sắt</p>
           <h1>Bien Hoa Rail Watch</h1>
         </div>
       </div>
@@ -103,35 +107,28 @@ function clearFilters() {
       </nav>
 
       <div class="public-header__meta">
-        <span class="soft-badge">{{ publicState.crossings.length }} điểm đang theo dõi</span>
+        <span class="soft-badge">{{ publicState.crossings.length }} điểm</span>
         <span class="soft-badge soft-badge--accent">{{ activeSection }}</span>
       </div>
     </header>
 
     <main class="public-main">
-      <section v-if="showDiscoveryChrome" class="hero-panel">
-        <div class="hero-panel__copy">
-          <p class="micro-label">Trung tâm tra cứu công khai</p>
-          <h2>Theo dõi giao cắt và vùng rủi ro rõ ràng, nhanh gọn</h2>
-          <p>
-            Giao diện được làm lại theo hướng sản phẩm thật: thông tin rõ ưu tiên, thao tác nhanh,
-            dễ đọc trên desktop lẫn mobile, và đủ chiều sâu để hỗ trợ tra cứu, cảnh báo theo khu
-            vực và ra quyết định tại hiện trường.
+      <section v-if="showDiscoveryChrome" class="overview-strip content-card">
+        <div class="overview-strip__lead">
+          <p class="micro-label">Điều phối công khai</p>
+          <h2>Giám sát giao cắt đường sắt theo khu vực</h2>
+          <p class="body-copy">
+            Tra cứu nhanh điểm giao cắt, bài tin liên quan, cảnh báo và lịch tàu gần nhất trên cùng một màn hình.
           </p>
-          <div class="hero-inline-stats">
-            <span class="soft-badge soft-badge--accent">Bản đồ thời gian thực</span>
-            <span class="soft-badge">Dành cho cộng đồng và vận hành</span>
-            <span class="soft-badge">Tối ưu tra cứu trên hiện trường</span>
-          </div>
         </div>
 
-        <div class="hero-panel__stats">
+        <div class="overview-strip__stats">
           <MetricCards :summary="publicState.summary" />
         </div>
       </section>
 
-      <section v-if="showDiscoveryChrome" class="command-deck">
-        <div class="command-deck__primary">
+      <section v-if="showDiscoveryChrome" class="command-deck command-deck--compact">
+        <div class="command-deck__header">
           <label class="field field--search">
             <span>Tìm nhanh điểm giao cắt</span>
             <input
@@ -141,18 +138,30 @@ function clearFilters() {
             />
           </label>
 
-          <div v-if="publicFilters.q && suggestions.length" class="suggestion-strip">
+          <div class="command-deck__quick-actions">
             <button
-              v-for="suggestion in suggestions"
-              :key="suggestion.id"
-              class="suggestion-chip"
+              class="primary-button"
               type="button"
-              @click="applySuggestion(suggestion)"
+              :disabled="publicState.locating"
+              @click="handleLocateUser"
             >
-              <strong>{{ suggestion.name }}</strong>
-              <span>{{ suggestion.code }} · {{ suggestion.district || suggestion.city }}</span>
+              {{ publicState.locating ? 'Đang định vị...' : 'Dùng vị trí của tôi' }}
             </button>
+            <button class="secondary-button" type="button" @click="clearFilters">Đặt lại</button>
           </div>
+        </div>
+
+        <div v-if="publicFilters.q && suggestions.length" class="suggestion-strip">
+          <button
+            v-for="suggestion in suggestions"
+            :key="suggestion.id"
+            class="suggestion-chip"
+            type="button"
+            @click="applySuggestion(suggestion)"
+          >
+            <strong>{{ suggestion.name }}</strong>
+            <span>{{ suggestion.code }} · {{ suggestion.district || suggestion.city }}</span>
+          </button>
         </div>
 
         <div class="command-deck__filters">
@@ -253,16 +262,6 @@ function clearFilters() {
                 <option :value="5000">5 km</option>
               </select>
             </label>
-
-            <button
-              class="primary-button"
-              type="button"
-              :disabled="publicState.locating"
-              @click="handleLocateUser"
-            >
-              {{ publicState.locating ? 'Đang định vị...' : 'Dùng vị trí của tôi' }}
-            </button>
-            <button class="secondary-button" type="button" @click="clearFilters">Đặt lại</button>
           </div>
         </div>
 
@@ -271,20 +270,16 @@ function clearFilters() {
             Đang dùng vị trí hiện tại để tính khoảng cách và gợi ý điểm gần nhất.
           </p>
           <p v-else>
-            Bật vị trí hoặc dùng bộ lọc phía trên để thu hẹp nhanh các điểm cần theo dõi.
+            Bật vị trí hoặc dùng bộ lọc để thu hẹp nhanh các điểm cần theo dõi.
           </p>
           <p v-if="publicState.error" class="error-text">{{ publicState.error }}</p>
         </div>
       </section>
 
-      <section v-else class="detail-context-bar">
+      <section v-else-if="isDetailRoute" class="detail-context-bar">
         <div>
           <p class="micro-label">Đang xem chi tiết</p>
-          <strong>Chi tiết điểm giao cắt dành cho hiện trường</strong>
-        </div>
-        <div class="hero-inline-stats">
-          <RouterLink class="secondary-button" to="/">Quay lại bản đồ</RouterLink>
-          <RouterLink class="secondary-button" to="/directory">Danh mục</RouterLink>
+          <strong>Chi tiết điểm giao cắt</strong>
         </div>
       </section>
 

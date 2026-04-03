@@ -36,6 +36,25 @@ export function formatCoordinate(value) {
   return Number.isFinite(Number(value)) ? Number(value).toFixed(5) : 'n/a'
 }
 
+export function describeUserLocation(location) {
+  if (!location) return ''
+  const accuracy = Number(location.accuracy || 0)
+
+  if (location.source === 'manual') {
+    return 'Vị trí chọn thủ công'
+  }
+
+  if (!accuracy) {
+    return ''
+  }
+
+  if (accuracy > 5000) {
+    return 'Độ chính xác thấp'
+  }
+
+  return `Sai số ${formatDistance(accuracy)}`
+}
+
 export function sortByRiskThenName(items) {
   const rank = { very_high: 0, high: 1, medium: 2, low: 3, unknown: 4 }
   return [...items].sort((left, right) => {
