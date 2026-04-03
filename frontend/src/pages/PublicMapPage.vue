@@ -293,14 +293,17 @@ async function openCrossingDetail(id) {
           <article class="content-block">
             <h4>Chuyến tàu sắp tới</h4>
             <div class="stack-list">
-              <div
-                v-for="schedule in selectedUpcomingSchedules"
-                :key="`${schedule.id}-${schedule.pass_time}`"
-                class="stack-item"
-              >
-                <strong>{{ schedule.pass_time }}</strong>
-                <span>{{ schedule.train_no }} · {{ schedule.direction }}</span>
-              </div>
+                <div
+                  v-for="schedule in selectedUpcomingSchedules"
+                  :key="`${schedule.id}-${schedule.pass_time}`"
+                  class="stack-item"
+                >
+                  <strong>{{ schedule.pass_time }}</strong>
+                  <span>
+                    {{ schedule.train_no }} · {{ schedule.direction }}
+                    <template v-if="schedule.eta_label"> · {{ schedule.eta_label }}</template>
+                  </span>
+                </div>
               <div v-if="!selectedUpcomingSchedules.length" class="empty-note">
                 Chưa có dữ liệu lịch tàu gần nhất.
               </div>
@@ -327,13 +330,13 @@ async function openCrossingDetail(id) {
               type="button"
               @click="openCrossingDetail(publicState.selectedCrossing.id)"
             >
-              Mở hồ sơ 360
+              Xem chi tiết điểm
             </button>
           </div>
         </template>
 
         <div v-else class="empty-note">
-          Hãy chọn một điểm trên bản đồ để xem hồ sơ chi tiết, lịch tàu và khuyến nghị an toàn.
+          Hãy chọn một điểm trên bản đồ để xem chi tiết điểm, lịch tàu và khuyến nghị an toàn.
         </div>
       </section>
 

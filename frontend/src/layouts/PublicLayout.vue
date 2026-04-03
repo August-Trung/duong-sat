@@ -26,7 +26,7 @@ const isDetailRoute = computed(() => route.name === 'public-crossing-detail')
 const showDiscoveryChrome = computed(() => !isDetailRoute.value)
 
 const activeSection = computed(() => {
-  if (route.name === 'public-crossing-detail') return 'Hồ sơ điểm giao cắt'
+  if (route.name === 'public-crossing-detail') return 'Chi tiết điểm giao cắt'
   if (route.name === 'public-directory') return 'Danh mục điểm'
   if (route.name === 'public-insights') return 'Cảnh báo và sự cố'
   return 'Bản đồ trực quan'
@@ -280,7 +280,7 @@ function clearFilters() {
       <section v-else class="detail-context-bar">
         <div>
           <p class="micro-label">Đang xem chi tiết</p>
-          <strong>Hồ sơ 360 dành cho hiện trường</strong>
+          <strong>Chi tiết điểm giao cắt dành cho hiện trường</strong>
         </div>
         <div class="hero-inline-stats">
           <RouterLink class="secondary-button" to="/">Quay lại bản đồ</RouterLink>

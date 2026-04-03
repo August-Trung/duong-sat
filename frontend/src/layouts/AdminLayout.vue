@@ -25,8 +25,7 @@ async function handleLogout() {
       <div class="admin-brand">
         <div class="brand-mark">RW</div>
         <div>
-          <p class="micro-label">Không gian vận hành nội bộ</p>
-          <h1>RailWatch Admin</h1>
+          <h2>RailWatch Admin</h2>
         </div>
       </div>
 

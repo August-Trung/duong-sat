@@ -27,6 +27,8 @@ CREATE TABLE IF NOT EXISTS crossings (
     verification_status TEXT NOT NULL DEFAULT 'draft',
     coordinate_source TEXT,
     source_reference TEXT,
+    alias_text TEXT,
+    reference_crossing_code TEXT,
     verification_notes TEXT,
     surveyed_at TEXT,
     verified_at TEXT,
@@ -56,6 +58,8 @@ CREATE TABLE IF NOT EXISTS news_articles (
     source_name TEXT NOT NULL,
     title TEXT NOT NULL,
     url TEXT NOT NULL UNIQUE,
+    external_url TEXT,
+    image_url TEXT,
     publisher TEXT,
     published_at TEXT,
     summary TEXT,
@@ -165,6 +169,7 @@ def connect(db_path: str) -> sqlite3.Connection:
 def init_db(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA_SQL)
     _migrate_crossings_table(conn)
+    _migrate_news_articles_table(conn)
     _migrate_soft_delete_columns(conn)
     _migrate_users_table(conn)
     _migrate_crossing_images_table(conn)
@@ -184,9 +189,9 @@ def import_crossings_csv(conn: sqlite3.Connection, csv_path: str) -> int:
                 code, name, address, ward, district, city, latitude, longitude,
                 crossing_type, barrier_type, manager_name, manager_phone,
                 verification_status, coordinate_source, source_reference,
-                verification_notes, surveyed_at, verified_at, notes
+                alias_text, reference_crossing_code, verification_notes, surveyed_at, verified_at, notes
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(code) DO UPDATE SET
                 name = excluded.name,
                 address = excluded.address,
@@ -202,6 +207,8 @@ def import_crossings_csv(conn: sqlite3.Connection, csv_path: str) -> int:
                 verification_status = excluded.verification_status,
                 coordinate_source = excluded.coordinate_source,
                 source_reference = excluded.source_reference,
+                alias_text = excluded.alias_text,
+                reference_crossing_code = excluded.reference_crossing_code,
                 verification_notes = excluded.verification_notes,
                 surveyed_at = excluded.surveyed_at,
                 verified_at = excluded.verified_at,
@@ -225,6 +232,8 @@ def import_crossings_csv(conn: sqlite3.Connection, csv_path: str) -> int:
                 row.get("verification_status") or "draft",
                 row.get("coordinate_source"),
                 row.get("source_reference"),
+                row.get("alias_text"),
+                row.get("reference_crossing_code"),
                 row.get("verification_notes"),
                 row.get("surveyed_at"),
                 row.get("verified_at"),
@@ -277,6 +286,8 @@ def _migrate_crossings_table(conn: sqlite3.Connection) -> None:
         "verification_status": "TEXT NOT NULL DEFAULT 'draft'",
         "coordinate_source": "TEXT",
         "source_reference": "TEXT",
+        "alias_text": "TEXT",
+        "reference_crossing_code": "TEXT",
         "verification_notes": "TEXT",
         "surveyed_at": "TEXT",
         "verified_at": "TEXT",
@@ -284,6 +295,11 @@ def _migrate_crossings_table(conn: sqlite3.Connection) -> None:
     for column_name, column_type in desired_columns.items():
         if column_name not in columns:
             conn.execute(f"ALTER TABLE crossings ADD COLUMN {column_name} {column_type}")
+
+
+def _migrate_news_articles_table(conn: sqlite3.Connection) -> None:
+    _ensure_column(conn, "news_articles", "external_url", "TEXT")
+    _ensure_column(conn, "news_articles", "image_url", "TEXT")
 
 
 def _migrate_soft_delete_columns(conn: sqlite3.Connection) -> None:

@@ -1,19 +1,20 @@
 # Đường Sắt Biên Hòa
 
-Hệ thống theo dõi điểm giao nhau đường sắt khu vực Biên Hòa, gồm backend FastAPI, frontend Vue và scene 3D dựng bằng Three.js từ dữ liệu OSM thật.
+Hệ thống theo dõi điểm giao cắt đường sắt khu vực Biên Hòa, gồm backend FastAPI, frontend Vue và pipeline crawl dữ liệu.
+
+## Nguyên tắc dữ liệu hiện tại
+
+- Dữ liệu fake hiện có vẫn được giữ nguyên để UI và API tiếp tục chạy ổn định.
+- Dữ liệu thật mới được crawl theo cơ chế `staging`: xuất ra file preview trước, chỉ import vào DB khi đã kiểm tra.
+- Mọi file kỹ thuật mới đều dùng UTF-8.
 
 ## Thành phần chính
 
 - Backend: `src/railway_crawler/`
 - Frontend: `frontend/src/`
-- Cơ sở dữ liệu: `data/railway.db`
-- OSM vector thật: `vietnam.gpkg`
-- DEM đang dùng:
-  - `n10_e106_1arc_v3.tif`
-  - `n11_e106_1arc_v3.tif`
-- Asset 3D thật:
-  - `frontend/public/assets/scene3d/transmission_tower.glb`
-  - `frontend/public/assets/scene3d/nature_kit/`
+- CSDL chạy local: `data/railway.db`
+- Dữ liệu vector thật: `vietnam.gpkg`
+- Dữ liệu staging thật: `data/staging/`
 
 ## Cài đặt
 
@@ -23,12 +24,6 @@ Hệ thống theo dõi điểm giao nhau đường sắt khu vực Biên Hòa, g
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -e .
-```
-
-Nếu backend vừa thêm dependency mới:
-
-```powershell
-.\.venv\Scripts\python -m pip install -e .
 ```
 
 ### Frontend
@@ -47,6 +42,14 @@ $env:PYTHONPATH = "D:\Study\Projects\DuongSat\src"
 .\.venv\Scripts\python -m uvicorn railway_crawler.api:app --host 127.0.0.1 --port 8000
 ```
 
+Hoặc dùng script:
+
+```powershell
+.\start-backend.ps1
+```
+
+Script này sẽ tự đọc DB đang active từ `data\active-db.txt`. Nếu file này không có, backend sẽ dùng `data\railway.db`.
+
 ### Frontend
 
 ```powershell
@@ -54,7 +57,7 @@ cd .\frontend
 npm run dev
 ```
 
-## Lệnh quan trọng
+## Lệnh dữ liệu
 
 Khởi tạo DB:
 
@@ -62,58 +65,87 @@ Khởi tạo DB:
 railway-crawler init-db --db .\data\railway.db
 ```
 
-Seed dữ liệu mẫu:
+Seed dữ liệu fake:
 
 ```powershell
 railway-crawler seed-fake --db .\data\railway.db
 ```
 
-Export scene 3D từ OSM thật và DEM:
+Crawl lịch tàu thật từ nguồn chính thức:
 
 ```powershell
-railway-crawler export-scene3d --db .\data\railway.db --gpkg .\vietnam.gpkg --dem .\n10_e106_1arc_v3.tif .\n11_e106_1arc_v3.tif --out .\generated\scene3d
+railway-crawler fetch-schedules --db .\data\railway.db --config .\crawler.toml
 ```
 
-## Scene 3D hiện tại
+Crawl tin thật:
 
-- Dữ liệu đường, đường sắt, building, landuse, water lấy từ `vietnam.gpkg`
-- Terrain lấy từ 2 tile `SRTM 1 Arc-Second Global` dạng `GeoTIFF`
-- Exporter đã hỗ trợ:
-  - `.json`
-  - `.asc`
-  - `.grd`
-  - `.tif`
-  - `.tiff`
-- Có cache subset GPKG tại `generated/scene3d/gpkg_subset_cache.sqlite`
+```powershell
+railway-crawler fetch-news --db .\data\railway.db --config .\crawler.toml
+```
 
-## Trạng thái renderer 3D
+Xuất ứng viên điểm giao cắt thật từ GPKG ra staging, chưa chạm vào dữ liệu fake:
 
-- Tile streaming theo camera
-- LOD gần, trung bình, xa
-- Giữ chuột trái để di chuyển, chuột phải để xoay
-- Đường luôn render dạng mặt đường phẳng nhiều lớp thay vì tụt hết về line ở zoom xa
-- Tên đường thật được in lặp theo quãng trực tiếp trên mặt đường ở các tuyến có tên hoặc mã đường
-- Building tách mái và tường
-- Nền đất và landuse xanh dùng texture ảnh thật từ bộ `Nature Kit`
-- Cây dùng asset thật ở gần, sprite nhẹ hơn ở khoảng trung bình để tránh đơ
-- Đã nạp asset trụ điện `.glb`, nhưng scene export hiện chưa có `powerlines` thật nên chưa có gì để dựng trụ điện trên bản đồ
+```powershell
+railway-crawler extract-real-crossings --db .\data\railway.db --gpkg .\vietnam.gpkg --out .\data\staging\real_crossing_candidates.json
+```
 
-## Giới hạn hiện tại
+Nếu muốn file CSV để rà soát rồi import:
 
-- DEM mới phủ `106E`, chưa phủ thêm phần `107E`
-- Scene export hiện có `powerlines = 0`
-- Chunk route 3D vẫn còn lớn
-- Nhãn đường hiện bám theo từng đoạn tuyến, chưa uốn cong liên tục theo toàn bộ con đường
+```powershell
+railway-crawler extract-real-crossings --db .\data\railway.db --gpkg .\vietnam.gpkg --out .\data\staging\real_crossing_candidates.csv
+```
 
-## Tài liệu đi kèm
+Suy ra ứng viên sự cố từ tin đã crawl, mặc định chỉ xuất preview:
 
-- `docs/HANDOFF.md`
-- `docs/RULES.md`
-- `docs/BACKLOG.md`
-- `docs/SKILLS.md`
-- `docs/threejs-3d-architecture.md`
+```powershell
+railway-crawler derive-incidents --db .\data\railway.db --config .\crawler.toml --out .\data\staging\incident_candidates.json
+```
 
-## Quy tắc bắt buộc
+Chỉ khi đã rà soát xong mới ghi ứng viên sự cố vào DB:
 
-- Mọi nội dung hiển thị và tài liệu phải dùng tiếng Việt có dấu, lưu UTF-8
-- Sau mỗi đợt làm việc phải cập nhật toàn bộ file `.md` để phản ánh đúng hiện trạng dự án
+```powershell
+railway-crawler derive-incidents --db .\data\railway.db --config .\crawler.toml --out .\data\staging\incident_candidates.json --apply
+```
+
+Import ứng viên điểm giao cắt đã kiểm tra vào DB:
+
+```powershell
+railway-crawler import-crossings --db .\data\railway.db --csv .\data\staging\real_crossing_candidates.csv
+```
+
+Tạo trial DB từ DB hiện tại nhưng thay cụm `crossings` bằng dữ liệu staging:
+
+```powershell
+.\prepare-trial-db.ps1
+```
+
+Đổi backend sang trial DB:
+
+```powershell
+.\use-trial-db.ps1
+```
+
+Rollback về DB mặc định:
+
+```powershell
+.\rollback-db.ps1
+```
+
+Tính lại risk snapshot:
+
+```powershell
+railway-crawler compute-risk --db .\data\railway.db
+```
+
+## Trạng thái crawler thật
+
+- `fetch-schedules`: lấy giờ tàu thật từ `https://giotaugiave.dsvn.vn/`
+- `fetch-news`: lấy tin thật qua Google News RSS theo bộ từ khóa cấu hình
+- `derive-incidents`: suy diễn sự cố từ tin thật có match rõ với điểm giao cắt
+- `extract-real-crossings`: suy ra ứng viên giao cắt thật từ giao điểm hình học giữa đường bộ và đường sắt trong OSM/GPKG
+
+## Lưu ý quan trọng
+
+- `extract-real-crossings` hiện tạo danh sách ứng viên, không tự khẳng định đó là bản ghi đã xác minh hiện trường.
+- `derive-incidents` mặc định không ghi DB để tránh làm bẩn dữ liệu vận hành.
+- Khi chưa crawl và kiểm chứng đủ dữ liệu thật, hệ thống vẫn tiếp tục dùng dữ liệu fake hiện tại cho UI.

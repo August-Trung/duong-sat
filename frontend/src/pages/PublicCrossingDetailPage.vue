@@ -76,6 +76,25 @@ function formatWhen(dateValue) {
   }).format(date)
 }
 
+function hasOpenableUrl(value) {
+  return /^https?:\/\//i.test(String(value || ''))
+}
+
+function articleUrl(article) {
+  return article?.external_url || article?.url || ''
+}
+
+function hasUsefulArticleImage(article) {
+  const value = String(article?.image_url || '').trim()
+  return /^https?:\/\//i.test(value)
+}
+
+function articleSnippet(article) {
+  const text = String(article?.summary || '').replace(/\s+/g, ' ').trim()
+  if (!text) return 'Chưa có đoạn trích ngắn cho bài viết này.'
+  return text.length > 140 ? `${text.slice(0, 140).trim()}...` : text
+}
+
 async function ensureCrossingLoaded(id) {
   if (!id) return
   if (!publicState.crossings.length || !publicState.schedules.length || !publicState.incidents.length) {
@@ -121,8 +140,8 @@ watch(crossingId, async (id) => {
     <section class="content-card crossing-detail-hero">
       <div class="section-head crossing-detail-hero__head">
         <div>
-          <p class="micro-label">Hồ sơ điểm giao cắt</p>
-          <h3>{{ crossing?.name || 'Đang tải hồ sơ điểm' }}</h3>
+          <p class="micro-label">Chi tiết điểm giao cắt</p>
+          <h3>{{ crossing?.name || 'Đang tải chi tiết điểm' }}</h3>
           <p class="body-copy">
             Xem trạng thái rào chắn, mức rủi ro, lịch tàu gần nhất, ảnh hiện trường và hướng dẫn
             an toàn trên cùng một màn hình.
@@ -140,19 +159,26 @@ watch(crossingId, async (id) => {
         </div>
       </div>
 
-      <div v-if="crossing" class="crossing-summary-banner">
+      <div v-if="crossing" class="crossing-summary-banner" :class="`is-${crossing.risk_level || 'low'}`">
         <div>
           <span class="risk-chip" :class="crossing.risk_level">{{ riskSummary.label }}</span>
           <strong>{{ riskSummary.message }}</strong>
         </div>
-        <span class="soft-badge soft-badge--accent">Điểm rủi ro {{ crossing.risk_score }}</span>
+        <span
+          class="soft-badge"
+          :class="{
+            'soft-badge--danger': crossing.risk_level === 'very_high',
+            'soft-badge--warning': crossing.risk_level === 'high' || crossing.risk_level === 'medium',
+            'soft-badge--accent': !['very_high', 'high', 'medium'].includes(crossing.risk_level),
+          }"
+        >Điểm rủi ro {{ crossing.risk_score }}</span>
       </div>
     </section>
 
     <div class="crossing-detail-grid">
       <section class="story-rail">
         <section class="content-card">
-          <div v-if="publicState.detailLoading" class="empty-note">Đang tải hồ sơ chi tiết...</div>
+          <div v-if="publicState.detailLoading" class="empty-note">Đang tải chi tiết điểm...</div>
 
           <template v-else-if="crossing">
             <div class="data-grid crossing-detail-topgrid">
@@ -220,7 +246,10 @@ watch(crossingId, async (id) => {
                   class="stack-item"
                 >
                   <strong>{{ schedule.pass_time }} · {{ schedule.train_no }}</strong>
-                  <span>{{ schedule.direction }} · {{ schedule.station_name }}</span>
+                  <span>
+                    {{ schedule.direction }} · {{ schedule.station_name }}
+                    <template v-if="schedule.eta_label"> · {{ schedule.eta_label }}</template>
+                  </span>
                 </div>
                 <div v-if="!forecast.schedules.length" class="empty-note">
                   Chưa ghi nhận chuyến tàu nào trong 30 phút tới cho điểm này.
@@ -262,7 +291,7 @@ watch(crossingId, async (id) => {
           </template>
 
           <div v-else class="empty-note">
-            Không tìm thấy hồ sơ điểm giao cắt này.
+            Không tìm thấy chi tiết điểm giao cắt này.
           </div>
         </section>
       </section>
@@ -308,7 +337,7 @@ watch(crossingId, async (id) => {
               </div>
             </article>
 
-            <article class="content-block">
+<article class="content-block">
               <h4>Sự cố gần đây</h4>
               <div class="stack-list">
                 <div v-for="incident in recentIncidents" :key="incident.id" class="stack-item">
@@ -317,6 +346,38 @@ watch(crossingId, async (id) => {
                 </div>
                 <div v-if="!recentIncidents.length" class="empty-note">
                   Chưa ghi nhận sự cố gần đây cho điểm này.
+                </div>
+              </div>
+            </article>
+
+            <article class="content-block">
+              <h4>Tin liên quan</h4>
+              <div class="stack-list">
+                <a
+                  v-for="article in crossing.articles || []"
+                  :key="article.url"
+                  class="stack-item article-stack-item"
+                  :href="hasOpenableUrl(articleUrl(article)) ? articleUrl(article) : undefined"
+                  :target="hasOpenableUrl(articleUrl(article)) ? '_blank' : undefined"
+                  rel="noreferrer"
+                >
+                  <img
+                    v-if="hasUsefulArticleImage(article)"
+                    class="article-stack-item__image"
+                    :src="toAssetUrl(article.image_url)"
+                    :alt="article.title"
+                  />
+                  <div class="article-stack-item__body">
+                    <strong>{{ article.title }}</strong>
+                    <span>
+                      {{ article.publisher || 'Nguồn tin' }}
+                      <template v-if="article.published_at"> · {{ formatWhen(article.published_at) }}</template>
+                    </span>
+                    <small>{{ articleSnippet(article) }}</small>
+                  </div>
+                </a>
+                <div v-if="!(crossing.articles || []).length" class="empty-note">
+                  Chưa có bài viết nào map được vào điểm này.
                 </div>
               </div>
             </article>

@@ -8,6 +8,9 @@ frontend/public/assets/scene3d/nature_kit/
 
 data/uploads/
 data/railway.db
+data/*.log
+data/railway.pre-real-swap*.db
+data/staging/
 tmp_feature_validation/
 tmpcjn9ofbg/
 ~$*.xlsx

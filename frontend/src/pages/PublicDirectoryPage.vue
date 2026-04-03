@@ -122,7 +122,7 @@ async function openCrossingDetail(id) {
         <section class="content-card sticky-panel">
           <div class="section-head">
             <div>
-              <p class="micro-label">Hồ sơ điểm</p>
+              <p class="micro-label">Chi tiết điểm</p>
               <h3>{{ publicState.selectedCrossing?.name || 'Chọn một điểm để xem chi tiết' }}</h3>
             </div>
           </div>
@@ -198,13 +198,13 @@ async function openCrossingDetail(id) {
                 type="button"
                 @click="openCrossingDetail(publicState.selectedCrossing.id)"
               >
-                Mở hồ sơ 360
+                Xem chi tiết điểm
               </button>
             </div>
           </template>
 
           <div v-else class="empty-note">
-            Chọn một thẻ trong danh mục để xem hồ sơ điểm, lịch tàu và dữ liệu sự cố.
+            Chọn một thẻ trong danh mục để xem chi tiết điểm, lịch tàu và dữ liệu sự cố.
           </div>
         </section>
       </aside>
