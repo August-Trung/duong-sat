@@ -195,10 +195,53 @@ watch(
 )
 
 watch(
-  () => [props.crossings, props.visibleLevels, props.highlightedIds, props.selectedId, props.overlays.crossings],
+  () => props.userLocation,
+  (location) => {
+    if (!map3d || props.mapMode !== 'three-d' || !location?.latitude || !location?.longitude) return
+    map3d.flyTo({
+      center: [location.longitude, location.latitude],
+      zoom: Math.max(map3d.getZoom(), 15),
+      pitch: DEFAULT_PITCH,
+      bearing: DEFAULT_BEARING,
+      essential: true,
+    })
+  },
+  { deep: true }
+)
+
+watch(
+  () => props.areaAlert,
+  (area) => {
+    if (!map3d || props.mapMode !== 'three-d' || !area?.center?.latitude || !area?.center?.longitude) return
+    if (area.source !== 'user') return
+    map3d.flyTo({
+      center: [area.center.longitude, area.center.latitude],
+      zoom: Math.max(map3d.getZoom(), 14),
+      pitch: DEFAULT_PITCH,
+      bearing: DEFAULT_BEARING,
+      essential: true,
+    })
+  },
+  { deep: true }
+)
+
+watch(
+  () => [
+    props.crossings,
+    props.visibleLevels,
+    props.highlightedIds,
+    props.selectedId,
+    props.overlays.crossings,
+    props.userLocation,
+    props.areaAlert,
+  ],
   () => {
     if (!map3d) return
     applyGeoJson3d('scene-crossings', toPublicCrossingFeatures(props.crossings))
+    applyGeoJson3d('scene-user-location', toUserLocationFeatures())
+    applyGeoJson3d('scene-user-accuracy', toUserAccuracyFeatures())
+    applyGeoJson3d('scene-area-center', toAreaCenterFeatures())
+    applyGeoJson3d('scene-area-radius', toAreaRadiusFeatures())
   },
   { deep: true }
 )
@@ -398,6 +441,32 @@ function emptyFeatureCollection() {
   return { type: 'FeatureCollection', features: [] }
 }
 
+function metersToLatitudeDegrees(meters) {
+  return meters / 111320
+}
+
+function metersToLongitudeDegrees(meters, latitude) {
+  const cosine = Math.cos((latitude * Math.PI) / 180)
+  const safeCosine = Math.max(Math.abs(cosine), 0.0001)
+  return meters / (111320 * safeCosine)
+}
+
+function createCirclePolygon(center, radiusMeters, steps = 48) {
+  const longitude = Number(center?.longitude)
+  const latitude = Number(center?.latitude)
+  if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) return null
+
+  const coordinates = []
+  for (let index = 0; index <= steps; index += 1) {
+    const angle = (Math.PI * 2 * index) / steps
+    const latOffset = metersToLatitudeDegrees(radiusMeters * Math.sin(angle))
+    const lngOffset = metersToLongitudeDegrees(radiusMeters * Math.cos(angle), latitude)
+    coordinates.push([longitude + lngOffset, latitude + latOffset])
+  }
+
+  return coordinates
+}
+
 function source3d(name) {
   return map3d?.getSource(name)
 }
@@ -476,6 +545,79 @@ function toPublicCrossingFeatures(items) {
     }))
 }
 
+function toUserLocationFeatures() {
+  if (!props.userLocation?.latitude || !props.userLocation?.longitude) return []
+
+  return [
+    {
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: [Number(props.userLocation.longitude), Number(props.userLocation.latitude)],
+      },
+      properties: {
+        label: props.userLocation.label || 'Vị trí của tôi',
+      },
+    },
+  ]
+}
+
+function toUserAccuracyFeatures() {
+  if (!props.userLocation?.latitude || !props.userLocation?.longitude) return []
+
+  const radiusMeters = Math.max(50, Number(props.userLocation.accuracy || 120))
+  const polygon = createCirclePolygon(props.userLocation, radiusMeters)
+  if (!polygon?.length) return []
+
+  return [
+    {
+      type: 'Feature',
+      geometry: { type: 'Polygon', coordinates: [polygon] },
+      properties: {
+        label: props.userLocation.label || 'Vị trí của tôi',
+      },
+    },
+  ]
+}
+
+function toAreaCenterFeatures() {
+  if (!props.areaAlert?.center?.latitude || !props.areaAlert?.center?.longitude) return []
+
+  return [
+    {
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: [
+          Number(props.areaAlert.center.longitude),
+          Number(props.areaAlert.center.latitude),
+        ],
+      },
+      properties: {
+        label: props.areaAlert.label || 'Vùng quan tâm',
+      },
+    },
+  ]
+}
+
+function toAreaRadiusFeatures() {
+  if (!props.areaAlert?.center?.latitude || !props.areaAlert?.center?.longitude) return []
+
+  const radiusMeters = Number(props.areaAlert.radiusMeters || 1500)
+  const polygon = createCirclePolygon(props.areaAlert.center, radiusMeters)
+  if (!polygon?.length) return []
+
+  return [
+    {
+      type: 'Feature',
+      geometry: { type: 'Polygon', coordinates: [polygon] },
+      properties: {
+        label: props.areaAlert.label || 'Vùng quan tâm',
+      },
+    },
+  ]
+}
+
 function toLineFeatures(items, featureType) {
   return (items || [])
     .map((item) => {
@@ -516,7 +658,18 @@ function toPolygonFeatures(items, featureType) {
 }
 
 function ensureSceneSources() {
-  ;['scene-crossings', 'scene-roads', 'scene-railways', 'scene-buildings', 'scene-landuse', 'scene-water']
+  ;[
+    'scene-crossings',
+    'scene-roads',
+    'scene-railways',
+    'scene-buildings',
+    'scene-landuse',
+    'scene-water',
+    'scene-user-location',
+    'scene-user-accuracy',
+    'scene-area-center',
+    'scene-area-radius',
+  ]
     .forEach((name) => {
       if (!source3d(name)) {
         map3d.addSource(name, { type: 'geojson', data: emptyFeatureCollection() })
@@ -630,6 +783,77 @@ function ensureSceneLayers() {
         'text-halo-width': 1.2,
       },
     },
+    {
+      id: 'scene-user-accuracy',
+      type: 'fill',
+      source: 'scene-user-accuracy',
+      paint: {
+        'fill-color': '#93c5fd',
+        'fill-opacity': 0.14,
+      },
+    },
+    {
+      id: 'scene-user-accuracy-outline',
+      type: 'line',
+      source: 'scene-user-accuracy',
+      paint: {
+        'line-color': '#3b82f6',
+        'line-width': 1.2,
+        'line-opacity': 0.9,
+      },
+    },
+    {
+      id: 'scene-area-radius',
+      type: 'fill',
+      source: 'scene-area-radius',
+      paint: {
+        'fill-color': '#bfdbfe',
+        'fill-opacity': 0.1,
+      },
+    },
+    {
+      id: 'scene-area-radius-outline',
+      type: 'line',
+      source: 'scene-area-radius',
+      paint: {
+        'line-color': '#3b82f6',
+        'line-width': 1.3,
+        'line-opacity': 0.9,
+      },
+    },
+    {
+      id: 'scene-area-center',
+      type: 'circle',
+      source: 'scene-area-center',
+      paint: {
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 5, 16, 7],
+        'circle-color': '#ffffff',
+        'circle-stroke-width': 2,
+        'circle-stroke-color': '#3b82f6',
+      },
+    },
+    {
+      id: 'scene-user-location-halo',
+      type: 'circle',
+      source: 'scene-user-location',
+      paint: {
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 12, 16, 16],
+        'circle-color': 'rgba(59,130,246,0.16)',
+        'circle-stroke-width': 2,
+        'circle-stroke-color': 'rgba(255,255,255,0.92)',
+      },
+    },
+    {
+      id: 'scene-user-location',
+      type: 'circle',
+      source: 'scene-user-location',
+      paint: {
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 6, 16, 8],
+        'circle-color': '#3b82f6',
+        'circle-stroke-width': 3,
+        'circle-stroke-color': '#ffffff',
+      },
+    },
   ]
 
   layers.forEach((layer) => {
@@ -699,6 +923,10 @@ async function syncSceneViewport() {
   applyGeoJson3d('scene-landuse', payloads.flatMap((tile) => toPolygonFeatures(tile.landuse, 'landuse')))
   applyGeoJson3d('scene-water', payloads.flatMap((tile) => toPolygonFeatures(tile.water, 'water')))
   applyGeoJson3d('scene-crossings', toPublicCrossingFeatures(props.crossings))
+  applyGeoJson3d('scene-user-location', toUserLocationFeatures())
+  applyGeoJson3d('scene-user-accuracy', toUserAccuracyFeatures())
+  applyGeoJson3d('scene-area-center', toAreaCenterFeatures())
+  applyGeoJson3d('scene-area-radius', toAreaRadiusFeatures())
 }
 
 function setupScenePopup() {

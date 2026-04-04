@@ -303,12 +303,13 @@ def create_app(database_path: str | None = None) -> FastAPI:
             if not any([scene3d_osm_path, scene3d_gpkg_path, scene3d_dem_path]):
                 raise HTTPException(status_code=404, detail="Scene 3D manifest chưa được tạo.")
 
+            conn = get_conn()
             export_scene_bundle(
-                db_path=db_path,
+                conn=conn,
                 output_dir=DEFAULT_OUTPUT_DIR,
                 osm_path=scene3d_osm_path,
                 gpkg_path=scene3d_gpkg_path,
-                dem_paths=[scene3d_dem_path] if scene3d_dem_path else None,
+                dem_path=scene3d_dem_path,
             )
 
         return read_scene_manifest(DEFAULT_OUTPUT_DIR)

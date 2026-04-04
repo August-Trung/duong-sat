@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: duongsat-demo-api
+    runtime: python
+    plan: free
+    buildCommand: pip install .
+    startCommand: uvicorn railway_crawler.api:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: RAILWAY_DB_PATH
+        value: data/railway.db
+      - key: RAILWAY_SCENE3D_OSM_PATH
+        value: data/osm_sample_bien_hoa.osm
+      - key: RAILWAY_SCENE3D_DEM_PATH
+        value: data/dem_sample_bien_hoa.json
