@@ -1,7 +1,7 @@
 <script setup>
 import maplibregl from 'maplibre-gl'
 import { nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
-import { fetchScene3DManifest, fetchScene3DTile } from '../api'
+import { fetchCrossings, fetchScene3DManifest, fetchScene3DTile } from '../api'
 
 const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_KEY || ''
 const VIEWPORT_PADDING_DEGREES = 0.02
@@ -15,6 +15,7 @@ const state = reactive({
   loading: true,
   error: '',
   manifest: null,
+  crossings: [],
   loadedTiles: 0,
   rendered: {
     crossings: 0,
@@ -65,6 +66,23 @@ function emptyFeatureCollection() {
 }
 
 function bienHoaFocusBounds() {
+  if (state.crossings.length) {
+    return state.crossings.reduce(
+      (acc, crossing) => ({
+        west: Math.min(acc.west, Number(crossing.longitude)),
+        south: Math.min(acc.south, Number(crossing.latitude)),
+        east: Math.max(acc.east, Number(crossing.longitude)),
+        north: Math.max(acc.north, Number(crossing.latitude)),
+      }),
+      {
+        west: Number.POSITIVE_INFINITY,
+        south: Number.POSITIVE_INFINITY,
+        east: Number.NEGATIVE_INFINITY,
+        north: Number.NEGATIVE_INFINITY,
+      }
+    )
+  }
+
   const crossingTiles = (state.manifest?.tiles || []).filter(
     (tile) => (tile.featureCounts?.crossings || 0) > 0
   )
@@ -167,8 +185,8 @@ function polygonCoordinates(feature) {
 function toCrossingFeatures(items) {
   return (items || [])
     .map((item) => {
-      const point = coordinate(item)
-      if (!point) return null
+      const point = item?.centerline ? coordinate(item) : [Number(item?.longitude), Number(item?.latitude)]
+      if (!point || !Number.isFinite(point[0]) || !Number.isFinite(point[1])) return null
 
       return {
         type: 'Feature',
@@ -177,8 +195,8 @@ function toCrossingFeatures(items) {
           id: item.id,
           code: item.code,
           name: item.name,
-          riskLevel: item.riskLevel,
-          riskScore: item.riskScore,
+          riskLevel: item.riskLevel || item.risk_level,
+          riskScore: item.riskScore || item.risk_score,
         },
       }
     })
@@ -407,9 +425,9 @@ function applyGeoJson(name, features) {
 }
 
 function updateRenderedStats(payloads) {
+  const crossingCount = state.crossings.length
   state.rendered = payloads.reduce(
     (acc, tile) => {
-      acc.crossings += tile.crossings?.length || 0
       acc.roads += tile.roads?.length || 0
       acc.railways += tile.railways?.length || 0
       acc.buildings += tile.buildings?.length || 0
@@ -426,6 +444,7 @@ function updateRenderedStats(payloads) {
       water: 0,
     }
   )
+  state.rendered.crossings = crossingCount
 }
 
 async function syncViewportData() {
@@ -439,7 +458,7 @@ async function syncViewportData() {
   state.loadedTiles = tileCache.size
   updateRenderedStats(payloads)
 
-  applyGeoJson('scene-crossings', payloads.flatMap((tile) => toCrossingFeatures(tile.crossings)))
+  applyGeoJson('scene-crossings', toCrossingFeatures(state.crossings))
   applyGeoJson('scene-roads', payloads.flatMap((tile) => toLineFeatures(tile.roads, 'road')))
   applyGeoJson('scene-railways', payloads.flatMap((tile) => toLineFeatures(tile.railways, 'railway')))
   applyGeoJson('scene-buildings', payloads.flatMap((tile) => toPolygonFeatures(tile.buildings, 'building')))
@@ -556,7 +575,9 @@ async function loadScene() {
   state.error = ''
 
   try {
-    state.manifest = await fetchScene3DManifest()
+    const [manifest, crossings] = await Promise.all([fetchScene3DManifest(), fetchCrossings()])
+    state.manifest = manifest
+    state.crossings = crossings
     state.loading = false
     await nextTick()
     initializeMap()
