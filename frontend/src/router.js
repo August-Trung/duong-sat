@@ -11,6 +11,7 @@ import AdminDashboardPage from './pages/AdminDashboardPage.vue'
 import AdminCrossingsPage from './pages/AdminCrossingsPage.vue'
 import AdminSchedulesPage from './pages/AdminSchedulesPage.vue'
 import AdminIncidentsPage from './pages/AdminIncidentsPage.vue'
+import AdminArticlesPage from './pages/AdminArticlesPage.vue'
 import AdminUsersPage from './pages/AdminUsersPage.vue'
 
 const router = createRouter({
@@ -46,6 +47,7 @@ const router = createRouter({
         { path: 'crossings', name: 'admin-crossings', component: AdminCrossingsPage },
         { path: 'schedules', name: 'admin-schedules', component: AdminSchedulesPage },
         { path: 'incidents', name: 'admin-incidents', component: AdminIncidentsPage },
+        { path: 'articles', name: 'admin-articles', component: AdminArticlesPage },
         { path: 'users', name: 'admin-users', component: AdminUsersPage },
       ],
     },

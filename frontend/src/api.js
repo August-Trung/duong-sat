@@ -187,6 +187,18 @@ export function deleteIncident(id) {
   return request(`/admin/incidents/${id}`, { method: 'DELETE' })
 }
 
+export function createArticle(payload) {
+  return request('/admin/articles', { method: 'POST', body: JSON.stringify(payload) })
+}
+
+export function updateArticle(id, payload) {
+  return request(`/admin/articles/${id}`, { method: 'PUT', body: JSON.stringify(payload) })
+}
+
+export function deleteArticle(id) {
+  return request(`/admin/articles/${id}`, { method: 'DELETE' })
+}
+
 export function fetchUsers() {
   return request('/admin/users')
 }

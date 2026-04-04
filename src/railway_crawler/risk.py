@@ -87,14 +87,18 @@ def _build_evidence(conn: sqlite3.Connection, crossing: sqlite3.Row) -> dict:
 
     article_count = 0
     severe_sum = 0
+    article_params: list[object] = [crossing["id"]]
+    article_where = "crossing_id = ?"
     if where_clauses:
-        query = (
-            "SELECT COUNT(*) AS article_count, COALESCE(SUM(severity_score), 0) AS severe_sum "
-            "FROM news_articles WHERE " + " OR ".join(where_clauses)
-        )
-        row = conn.execute(query, params).fetchone()
-        article_count = row["article_count"]
-        severe_sum = row["severe_sum"]
+        article_where += " OR (crossing_id IS NULL AND (" + " OR ".join(where_clauses) + "))"
+        article_params.extend(params)
+    query = (
+        "SELECT COUNT(*) AS article_count, COALESCE(SUM(severity_score), 0) AS severe_sum "
+        "FROM news_articles WHERE " + article_where
+    )
+    row = conn.execute(query, article_params).fetchone()
+    article_count = row["article_count"]
+    severe_sum = row["severe_sum"]
 
     station_keyword = _guess_station_keyword(crossing["name"])
     schedule_count = 0

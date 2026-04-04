@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 
 from railway_crawler.db import ROLE_VALUES, hash_password, init_db, verify_password
 from railway_crawler.news import resolve_article_assets
+from railway_crawler.risk import compute_risk
 from railway_crawler.scene3d import DEFAULT_OUTPUT_DIR, export_scene_bundle, read_scene_manifest, read_scene_tile
 
 
@@ -68,6 +69,7 @@ ROLE_PERMISSIONS = {
         "crossings:bulk",
         "schedules:write",
         "incidents:write",
+        "articles:write",
         "images:upload",
         "images:delete",
     },
@@ -86,6 +88,8 @@ ROLE_PERMISSIONS = {
         "schedules:delete",
         "incidents:write",
         "incidents:delete",
+        "articles:write",
+        "articles:delete",
         "images:upload",
         "images:delete",
         "users:manage",
@@ -146,6 +150,21 @@ class IncidentPayload(BaseModel):
     injured_count: int = 0
     description: str | None = None
     source_url: str | None = None
+
+
+class ArticlePayload(BaseModel):
+    crossing_id: int | None = None
+    source_name: str = "Admin"
+    title: str
+    url: str
+    external_url: str | None = None
+    image_url: str | None = None
+    publisher: str | None = None
+    published_at: str | None = None
+    summary: str | None = None
+    matched_query: str | None = None
+    location_hint: str | None = None
+    severity_score: int = 0
 
 
 class BulkActionPayload(BaseModel):
@@ -366,6 +385,7 @@ def create_app(database_path: str | None = None) -> FastAPI:
             "crossings": _list_crossings(conn),
             "schedules": _list_admin_schedules(conn),
             "incidents": _list_admin_incidents(conn),
+            "articles": _list_admin_articles(conn),
             "users": _list_users(conn) if "users:manage" in user["permissions"] else [],
             "qualityAlerts": _data_quality_alerts(conn),
             "auditLogs": _list_audit_logs(conn, limit=30),
@@ -752,6 +772,82 @@ def create_app(database_path: str | None = None) -> FastAPI:
         conn.commit()
         return {"status": "ok"}
 
+    @app.post("/api/admin/articles")
+    def create_article_admin(payload: ArticlePayload, user: dict = Depends(require_permission("articles:write"))):
+        conn = get_conn()
+        cursor = conn.execute(
+            """
+            INSERT INTO news_articles (
+                crossing_id, source_name, title, url, external_url, image_url, publisher,
+                published_at, summary, matched_query, location_hint, severity_score
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                payload.crossing_id,
+                payload.source_name,
+                payload.title,
+                payload.url,
+                payload.external_url,
+                payload.image_url,
+                payload.publisher,
+                payload.published_at,
+                payload.summary,
+                payload.matched_query,
+                payload.location_hint,
+                payload.severity_score,
+            ),
+        )
+        after = _get_article(conn, cursor.lastrowid)
+        _log_audit(conn, user, "article", cursor.lastrowid, "create", f"Tạo bài viết {payload.title}", None, after)
+        compute_risk(conn)
+        conn.commit()
+        return after
+
+    @app.put("/api/admin/articles/{article_id}")
+    def update_article_admin(article_id: int, payload: ArticlePayload, user: dict = Depends(require_permission("articles:write"))):
+        conn = get_conn()
+        before = _get_article(conn, article_id)
+        conn.execute(
+            """
+            UPDATE news_articles
+            SET crossing_id = ?, source_name = ?, title = ?, url = ?, external_url = ?, image_url = ?,
+                publisher = ?, published_at = ?, summary = ?, matched_query = ?, location_hint = ?,
+                severity_score = ?
+            WHERE id = ?
+            """,
+            (
+                payload.crossing_id,
+                payload.source_name,
+                payload.title,
+                payload.url,
+                payload.external_url,
+                payload.image_url,
+                payload.publisher,
+                payload.published_at,
+                payload.summary,
+                payload.matched_query,
+                payload.location_hint,
+                payload.severity_score,
+                article_id,
+            ),
+        )
+        after = _get_article(conn, article_id)
+        _log_audit(conn, user, "article", article_id, "update", f"Cập nhật bài viết {payload.title}", before, after)
+        compute_risk(conn)
+        conn.commit()
+        return after
+
+    @app.delete("/api/admin/articles/{article_id}")
+    def delete_article_admin(article_id: int, user: dict = Depends(require_permission("articles:delete"))):
+        conn = get_conn()
+        before = _get_article(conn, article_id)
+        conn.execute("DELETE FROM news_articles WHERE id = ?", (article_id,))
+        _log_audit(conn, user, "article", article_id, "delete", f"Xóa bài viết {before['title']}", before, None)
+        compute_risk(conn)
+        conn.commit()
+        return {"status": "ok"}
+
     @app.get("/api/admin/users")
     def list_users(user: dict = Depends(require_permission("users:manage"))):
         conn = get_conn()
@@ -1002,7 +1098,7 @@ def _get_crossing_schedules(conn: sqlite3.Connection, crossing: dict) -> list[di
 
 
 def _get_crossing_articles(conn: sqlite3.Connection, crossing: dict) -> list[dict]:
-    params: list[object] = []
+    params: list[object] = [crossing["id"]]
     clauses = []
     alias_tokens = []
     if crossing.get("alias_text"):
@@ -1021,14 +1117,16 @@ def _get_crossing_articles(conn: sqlite3.Connection, crossing: dict) -> list[dic
         clauses.append("(lower(title) LIKE ? OR lower(summary) LIKE ? OR lower(location_hint) LIKE ?)")
         needle = f"%{token.lower()}%"
         params.extend([needle, needle, needle])
-    if not clauses:
-        return []
+    match_sql = " OR ".join(clauses)
+    where_sql = "crossing_id = ?"
+    if match_sql:
+        where_sql += f" OR (crossing_id IS NULL AND ({match_sql}))"
     rows = conn.execute(
         """
-        SELECT title, url, external_url, image_url, publisher, published_at, summary, severity_score
+        SELECT id, crossing_id, title, url, external_url, image_url, publisher, published_at, summary, severity_score
         FROM news_articles
         WHERE """
-        + " OR ".join(clauses)
+        + where_sql
         + """
         ORDER BY COALESCE(published_at, scraped_at) DESC
         LIMIT 8
@@ -1265,6 +1363,21 @@ def _get_incident(conn: sqlite3.Connection, incident_id: int) -> dict:
     return dict(row)
 
 
+def _get_article(conn: sqlite3.Connection, article_id: int) -> dict:
+    row = conn.execute(
+        """
+        SELECT na.*, c.name AS crossing_name
+        FROM news_articles na
+        LEFT JOIN crossings c ON c.id = na.crossing_id
+        WHERE na.id = ?
+        """,
+        (article_id,),
+    ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Article not found")
+    return dict(row)
+
+
 def _get_user(conn: sqlite3.Connection, user_id: int) -> dict:
     row = conn.execute(
         """
@@ -1302,6 +1415,18 @@ def _list_admin_schedules(conn: sqlite3.Connection) -> list[dict]:
         FROM train_schedules
         ORDER BY CASE WHEN deleted_at IS NULL THEN 0 ELSE 1 END, station_name, direction, pass_time
         LIMIT 300
+        """
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def _list_admin_articles(conn: sqlite3.Connection) -> list[dict]:
+    rows = conn.execute(
+        """
+        SELECT na.*, c.name AS crossing_name
+        FROM news_articles na
+        LEFT JOIN crossings c ON c.id = na.crossing_id
+        ORDER BY COALESCE(na.published_at, na.scraped_at) DESC, na.id DESC
         """
     ).fetchall()
     return [dict(row) for row in rows]

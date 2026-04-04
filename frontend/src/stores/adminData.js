@@ -6,6 +6,7 @@ export const adminState = reactive({
     crossings: [],
     schedules: [],
     incidents: [],
+    articles: [],
     users: [],
     qualityAlerts: [],
     auditLogs: [],

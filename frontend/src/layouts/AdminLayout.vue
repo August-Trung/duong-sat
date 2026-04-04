@@ -8,6 +8,7 @@ const route = useRoute()
 const router = useRouter()
 const currentUser = computed(() => authState.user)
 const canManageUsers = computed(() => hasPermission('users:manage'))
+const canManageArticles = computed(() => hasPermission('articles:write') || hasPermission('articles:delete'))
 
 onMounted(async () => {
   await loadAdminOverview()
@@ -42,6 +43,14 @@ async function handleLogout() {
         <RouterLink class="nav-pill nav-pill--block" :class="{ active: route.name === 'admin-incidents' }" to="/admin/incidents">
           Sự cố
         </RouterLink>
+        <RouterLink
+          v-if="canManageArticles"
+          class="nav-pill nav-pill--block"
+          :class="{ active: route.name === 'admin-articles' }"
+          to="/admin/articles"
+        >
+          Bài viết
+        </RouterLink>
         <RouterLink v-if="canManageUsers" class="nav-pill nav-pill--block" :class="{ active: route.name === 'admin-users' }" to="/admin/users">
           Người dùng
         </RouterLink>
@@ -64,6 +73,7 @@ async function handleLogout() {
         <div class="hero-inline-stats">
           <span class="soft-badge">{{ adminState.overview.crossings?.length || 0 }} hồ sơ</span>
           <span class="soft-badge">{{ adminState.overview.incidents?.length || 0 }} sự cố</span>
+          <span v-if="canManageArticles" class="soft-badge">{{ adminState.overview.articles?.length || 0 }} bài viết</span>
         </div>
 
         <button class="primary-button" type="button" @click="handleLogout">Đăng xuất</button>

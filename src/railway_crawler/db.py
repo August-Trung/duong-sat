@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS train_schedules (
 
 CREATE TABLE IF NOT EXISTS news_articles (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    crossing_id INTEGER,
     source_name TEXT NOT NULL,
     title TEXT NOT NULL,
     url TEXT NOT NULL UNIQUE,
@@ -66,7 +67,8 @@ CREATE TABLE IF NOT EXISTS news_articles (
     matched_query TEXT,
     location_hint TEXT,
     severity_score INTEGER NOT NULL DEFAULT 0,
-    scraped_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    scraped_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (crossing_id) REFERENCES crossings(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS incident_reports (
@@ -298,6 +300,7 @@ def _migrate_crossings_table(conn: sqlite3.Connection) -> None:
 
 
 def _migrate_news_articles_table(conn: sqlite3.Connection) -> None:
+    _ensure_column(conn, "news_articles", "crossing_id", "INTEGER")
     _ensure_column(conn, "news_articles", "external_url", "TEXT")
     _ensure_column(conn, "news_articles", "image_url", "TEXT")
 
