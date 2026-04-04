@@ -1568,6 +1568,11 @@ img {
 	box-shadow: var(--shadow-md);
 }
 
+.scene3d-map--embedded {
+	height: 680px;
+	border-radius: 18px;
+}
+
 .scene3d-map .maplibregl-popup-content {
 	padding: 12px 14px;
 	font-size: 0.82rem;
