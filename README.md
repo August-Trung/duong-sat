@@ -49,6 +49,7 @@ Hoặc dùng script:
 ```
 
 Script này sẽ tự đọc DB đang active từ `data\active-db.txt`. Nếu file này không có, backend sẽ dùng `data\railway.db`.
+Nếu có file `.env.local` ở root project, script cũng sẽ nạp các biến môi trường local trước khi chạy backend.
 
 ### Frontend
 
@@ -56,6 +57,26 @@ Script này sẽ tự đọc DB đang active từ `data\active-db.txt`. Nếu fi
 cd .\frontend
 npm run dev
 ```
+
+Frontend đã tách rõ 2 môi trường:
+
+- Local dev: [frontend/.env.development](D:/Study/Projects/DuongSat/frontend/.env.development) dùng `VITE_API_BASE_LOCAL=/api`, đi qua Vite proxy sang `127.0.0.1:8000`
+- Host/build: [frontend/.env.production](D:/Study/Projects/DuongSat/frontend/.env.production) dùng `VITE_API_BASE_HOST=https://duongsat-api.onrender.com/api`
+
+Không nên để frontend local trỏ thẳng vào API host khi đang kiểm thử dữ liệu local.
+
+## Cấu hình local và host
+
+- Backend local mẫu: [.env.local.example](D:/Study/Projects/DuongSat/.env.local.example)
+- Backend host mẫu: [.env.host.example](D:/Study/Projects/DuongSat/.env.host.example)
+- Frontend local: [frontend/.env.development](D:/Study/Projects/DuongSat/frontend/.env.development)
+- Frontend host: [frontend/.env.production](D:/Study/Projects/DuongSat/frontend/.env.production)
+
+Quy ước nên dùng:
+
+- Làm và kiểm tra dữ liệu trên local với `data/railway.db`
+- Khi ổn, chạy [sync-host-db.ps1](D:/Study/Projects/DuongSat/sync-host-db.ps1) để đồng bộ DB local về snapshot `data/railway.db` dùng cho host
+- Sau đó commit và push để host deploy cùng đúng DB đó
 
 ## Lệnh dữ liệu
 
