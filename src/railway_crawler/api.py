@@ -1725,12 +1725,40 @@ def _require_existing(conn: sqlite3.Connection, table_name: str, row_id: int) ->
 
 
 def _guess_station(crossing: dict) -> str | None:
-    merged = " ".join(filter(None, [crossing.get("name"), crossing.get("address"), crossing.get("ward")])).lower()
-    if any(token in merged for token in ["biên hòa", "bien hoa", "long bình", "long binh", "hố nai", "ho nai"]):
+    merged = " ".join(
+        filter(
+            None,
+            [
+                crossing.get("name"),
+                crossing.get("address"),
+                crossing.get("ward"),
+                crossing.get("district"),
+                crossing.get("city"),
+                crossing.get("alias_text"),
+            ],
+        )
+    ).lower()
+    if any(
+        token in merged
+        for token in [
+            "biên hòa",
+            "bien hoa",
+            "long bình",
+            "long binh",
+            "hố nai",
+            "ho nai",
+            "tam hòa",
+            "tam hoa",
+            "tân biên",
+            "tan bien",
+            "tam hiệp",
+            "tam hiep",
+        ]
+    ):
         return "Biên Hòa"
     if any(token in merged for token in ["dĩ an", "di an"]):
         return "Dĩ An"
-    if any(token in merged for token in ["long khĂ¡nh", "long khanh"]):
+    if any(token in merged for token in ["long khánh", "long khanh"]):
         return "Long Khánh"
     return None
 
