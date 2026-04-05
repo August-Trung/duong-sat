@@ -86,6 +86,11 @@ export function crossingSearchText(crossing) {
 }
 
 export function schedulesForCrossing(crossing, schedules = [], limit = 4) {
+  const embeddedSchedules = Array.isArray(crossing?.schedules) ? crossing.schedules : []
+  if (embeddedSchedules.length) {
+    return embeddedSchedules.slice(0, limit)
+  }
+
   const crossingName = normalizeText(crossing?.name)
   const crossingCode = normalizeText(crossing?.code)
   return schedules
