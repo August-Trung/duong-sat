@@ -32,6 +32,8 @@ let selectedZoneLayer
 let userLayer
 let areaLayer
 let hasFitBounds = false
+let currentBaseMode = null
+let currentBaseLayerToken = 0
 let sceneManifest = null
 let sceneSyncTimer = null
 let sceneSyncRequestId = 0
@@ -51,6 +53,15 @@ const levelColors = {
   unknown: '#9ca9b7',
 }
 
+const baseLayerFallbacks = {
+  standard: ['standard', 'osm'],
+  light: ['light', 'osm'],
+  dark: ['dark', 'osm'],
+  topo: ['topo', 'osm'],
+  satellite: ['satellite', 'osm'],
+  osm: ['osm'],
+}
+
 function riskLabel(level) {
   return {
     very_high: 'Rất cao',
@@ -63,34 +74,39 @@ function riskLabel(level) {
 
 const baseLayers = {
   standard: () =>
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap, &copy; CARTO',
       maxNativeZoom: 20,
       maxZoom: 21,
+      crossOrigin: true,
     }),
   osm: () =>
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap contributors',
       maxNativeZoom: 19,
       maxZoom: 21,
+      crossOrigin: true,
     }),
   topo: () =>
     L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenTopoMap contributors',
       maxNativeZoom: 17,
       maxZoom: 21,
+      crossOrigin: true,
     }),
   dark: () =>
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap, &copy; CARTO',
       maxNativeZoom: 20,
       maxZoom: 21,
+      crossOrigin: true,
     }),
   light: () =>
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap, &copy; CARTO',
       maxNativeZoom: 20,
       maxZoom: 21,
+      crossOrigin: true,
     }),
   satellite: () =>
     L.tileLayer(
@@ -99,6 +115,7 @@ const baseLayers = {
         attribution: 'Tiles &copy; Esri',
         maxNativeZoom: 19,
         maxZoom: 21,
+        crossOrigin: true,
       }
     ),
 }
@@ -121,6 +138,12 @@ onMounted(() => {
   renderLayers()
   map.on('click', handleMapClick)
   document.addEventListener('fullscreenchange', handleFullscreenChange)
+
+  // Ensure map renders correctly
+  setTimeout(() => {
+    if (map) map.invalidateSize()
+  }, 500)
+
   if (props.mapMode === 'three-d') {
     initialize3DMap()
   }
@@ -265,9 +288,46 @@ function updateBaseLayer() {
   if (currentBaseLayer) {
     map.removeLayer(currentBaseLayer)
   }
-  const factory = baseLayers[props.mapMode] || baseLayers.standard
-  currentBaseLayer = factory()
-  currentBaseLayer.addTo(map)
+
+  const requestedMode = baseLayers[props.mapMode] ? props.mapMode : 'standard'
+  const fallbackChain = baseLayerFallbacks[requestedMode] || ['standard', 'osm']
+  const token = ++currentBaseLayerToken
+
+  function attachBaseLayer(modeIndex) {
+    const mode = fallbackChain[modeIndex] || 'osm'
+    const factory = baseLayers[mode] || baseLayers.osm
+    currentBaseMode = mode
+    currentBaseLayer = factory()
+
+    let hasLoadedTile = false
+    let hasFallenBack = false
+
+    currentBaseLayer.on('tileloadstart', () => {
+      hasLoadedTile = true
+    })
+
+    currentBaseLayer.on('tileerror', () => {
+      if (token !== currentBaseLayerToken || hasFallenBack || hasLoadedTile) return
+
+      const nextMode = fallbackChain[modeIndex + 1]
+      if (!nextMode || nextMode === mode) return
+
+      hasFallenBack = true
+      if (map.hasLayer(currentBaseLayer)) {
+        map.removeLayer(currentBaseLayer)
+      }
+      attachBaseLayer(modeIndex + 1)
+      emit('change-mode', nextMode)
+    })
+
+    currentBaseLayer.addTo(map)
+    window.setTimeout(() => {
+      if (token !== currentBaseLayerToken || !map) return
+      map.invalidateSize()
+    }, 80)
+  }
+
+  attachBaseLayer(0)
 }
 
 function suppressDoubleClickZoom(layer) {
@@ -295,10 +355,10 @@ function renderLayers() {
     const latlng = [props.userLocation.latitude, props.userLocation.longitude]
     suppressDoubleClickZoom(
       L.circleMarker(latlng, {
-      radius: 8,
-      color: '#ffffff',
-      weight: 3,
-      fillColor: '#3b82f6',
+        radius: 8,
+        color: '#ffffff',
+        weight: 3,
+        fillColor: '#3b82f6',
         fillOpacity: 1,
       })
     )
@@ -326,10 +386,10 @@ function renderLayers() {
     }).addTo(areaLayer)
     suppressDoubleClickZoom(
       L.circleMarker(latlng, {
-      radius: 5,
-      color: '#3b82f6',
-      weight: 2,
-      fillColor: '#ffffff',
+        radius: 5,
+        color: '#3b82f6',
+        weight: 2,
+        fillColor: '#ffffff',
         fillOpacity: 1,
       })
     )
@@ -907,7 +967,7 @@ async function ensureTileLoaded3d(tileMeta) {
 function queueSceneSync() {
   if (sceneSyncTimer) window.clearTimeout(sceneSyncTimer)
   sceneSyncTimer = window.setTimeout(() => {
-    syncSceneViewport().catch(() => {})
+    syncSceneViewport().catch(() => { })
   }, 120)
 }
 
@@ -1028,62 +1088,36 @@ async function initialize3DMap() {
     </button>
 
     <div class="map-fab-group">
-      <button
-        class="mode-chip"
-        :class="{ active: mapMode === 'standard' }"
-        type="button"
-        @click="emit('change-mode', 'standard')"
-      >
-        Chuẩn
-      </button>
-      <button
-        class="mode-chip"
-        :class="{ active: mapMode === 'osm' }"
-        type="button"
-        @click="emit('change-mode', 'osm')"
-      >
-        OpenStreetMap
-      </button>
-      <button
-        class="mode-chip"
-        :class="{ active: mapMode === 'light' }"
-        type="button"
-        @click="emit('change-mode', 'light')"
-      >
-        Sáng
-      </button>
-      <button
-        class="mode-chip"
-        :class="{ active: mapMode === 'dark' }"
-        type="button"
-        @click="emit('change-mode', 'dark')"
-      >
-        Tối
-      </button>
-      <button
-        class="mode-chip"
-        :class="{ active: mapMode === 'satellite' }"
-        type="button"
-        @click="emit('change-mode', 'satellite')"
-      >
-        Vệ tinh
-      </button>
-      <button
-        class="mode-chip"
-        :class="{ active: mapMode === 'three-d' }"
-        type="button"
-        @click="emit('change-mode', 'three-d')"
-      >
-        Map 3D
-      </button>
-      <button
-        class="mode-chip"
-        :class="{ active: mapMode === 'topo' }"
-        type="button"
-        @click="emit('change-mode', 'topo')"
-      >
-        Địa hình
-      </button>
+      <div class="map-mode-selector">
+        <button class="mode-chip" :class="{ active: mapMode === 'standard' }" type="button"
+          @click="emit('change-mode', 'standard')">
+          Chuẩn
+        </button>
+        <button class="mode-chip" :class="{ active: mapMode === 'osm' }" type="button"
+          @click="emit('change-mode', 'osm')">
+          OSM
+        </button>
+        <button class="mode-chip" :class="{ active: mapMode === 'light' }" type="button"
+          @click="emit('change-mode', 'light')">
+          Sáng
+        </button>
+        <button class="mode-chip" :class="{ active: mapMode === 'dark' }" type="button"
+          @click="emit('change-mode', 'dark')">
+          Tối
+        </button>
+        <button class="mode-chip" :class="{ active: mapMode === 'satellite' }" type="button"
+          @click="emit('change-mode', 'satellite')">
+          Vệ tinh
+        </button>
+        <button class="mode-chip" :class="{ active: mapMode === 'three-d' }" type="button"
+          @click="emit('change-mode', 'three-d')">
+          3D
+        </button>
+        <button class="mode-chip" :class="{ active: mapMode === 'topo' }" type="button"
+          @click="emit('change-mode', 'topo')">
+          Địa hình
+        </button>
+      </div>
     </div>
 
     <section v-if="selectedCrossing" class="map-focus-card">
@@ -1117,7 +1151,8 @@ async function initialize3DMap() {
       </div>
     </section>
 
-    <div v-show="mapMode !== 'three-d'" ref="mapRoot" class="map-root"></div>
-    <div v-show="mapMode === 'three-d'" ref="mapRoot3d" class="map-root scene3d-map scene3d-map--embedded"></div>
+    <div v-show="mapMode !== 'three-d'" ref="mapRoot" class="map-root relative z-10"></div>
+    <div v-show="mapMode === 'three-d'" ref="mapRoot3d"
+      class="map-root scene3d-map scene3d-map--embedded relative z-10"></div>
   </div>
 </template>

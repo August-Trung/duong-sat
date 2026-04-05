@@ -42,46 +42,76 @@ function subtitleText(_, item) {
 </script>
 
 <template>
-  <EntityCrudPanel
-    title="Bài viết"
-    eyebrow="Gán bài viết theo điểm giao cắt"
-    :items="adminState.overview.articles"
-    :empty-form="emptyForm"
-    :normalize="normalize"
-    :create-action="createArticle"
-    :update-action="updateArticle"
-    :delete-action="deleteArticle"
-    :refresh-action="loadAdminOverview"
-    list-key="title"
-    list-subtitle-key="crossing_name"
-    :list-subtitle-formatter="subtitleText"
-    :can-edit="hasPermission('articles:write')"
-    :can-delete="hasPermission('articles:delete')"
-    submit-label-create="Tạo bài viết"
-    submit-label-update="Lưu gán bài viết"
-  >
+  <EntityCrudPanel title="Bài viết" eyebrow="Gán bài viết theo điểm giao cắt" :items="adminState.overview.articles || []"
+    :empty-form="emptyForm" :normalize="normalize" :create-action="createArticle" :update-action="updateArticle"
+    :delete-action="deleteArticle" :refresh-action="loadAdminOverview" list-key="title"
+    list-subtitle-key="crossing_name" :list-subtitle-formatter="subtitleText"
+    :can-edit="hasPermission('articles:write')" :can-delete="hasPermission('articles:delete')"
+    submit-label-create="Tạo bài viết" submit-label-update="Lưu gán bài viết">
     <template #form="{ form }">
-      <div class="form-grid">
-        <label class="field">
-          <span>Điểm giao cắt</span>
-          <select v-model="form.crossing_id">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="space-y-2 md:col-span-2">
+          <label class="text-[10px] font-bold text-soft uppercase tracking-widest ml-1">Điểm giao cắt liên quan</label>
+          <select v-model="form.crossing_id"
+            class="w-full px-4 py-3 bg-bg-strong border-transparent focus:bg-white focus:border-brand/20 rounded-2xl text-sm font-medium transition-all outline-none appearance-none">
             <option value="">Chưa gán điểm</option>
             <option v-for="item in adminState.overview.crossings" :key="item.id" :value="item.id">
-              {{ item.name }}
+              {{ item.name }} ({{ item.code }})
             </option>
           </select>
-        </label>
-        <label class="field"><span>Nguồn</span><input v-model="form.source_name" /></label>
-        <label class="field field-wide"><span>Tiêu đề</span><input v-model="form.title" /></label>
-        <label class="field field-wide"><span>URL bài gốc</span><input v-model="form.url" /></label>
-        <label class="field field-wide"><span>External URL</span><input v-model="form.external_url" /></label>
-        <label class="field field-wide"><span>Ảnh đại diện</span><input v-model="form.image_url" /></label>
-        <label class="field"><span>Nhà xuất bản</span><input v-model="form.publisher" /></label>
-        <label class="field"><span>Published At</span><input v-model="form.published_at" /></label>
-        <label class="field"><span>Matched Query</span><input v-model="form.matched_query" /></label>
-        <label class="field"><span>Location Hint</span><input v-model="form.location_hint" /></label>
-        <label class="field"><span>Điểm mức độ</span><input v-model="form.severity_score" type="number" min="0" /></label>
-        <label class="field field-wide"><span>Tóm tắt</span><textarea v-model="form.summary"></textarea></label>
+        </div>
+
+        <div class="space-y-2 md:col-span-2">
+          <label class="text-[10px] font-bold text-soft uppercase tracking-widest ml-1">Tiêu đề bài viết</label>
+          <input v-model="form.title"
+            class="w-full px-4 py-3 bg-bg-strong border-transparent focus:bg-white focus:border-brand/20 rounded-2xl text-sm font-medium transition-all outline-none"
+            placeholder="Nhập tiêu đề..." />
+        </div>
+
+        <div class="space-y-2">
+          <label class="text-[10px] font-bold text-soft uppercase tracking-widest ml-1">Nguồn tin</label>
+          <input v-model="form.source_name"
+            class="w-full px-4 py-3 bg-bg-strong border-transparent focus:bg-white focus:border-brand/20 rounded-2xl text-sm font-medium transition-all outline-none" />
+        </div>
+
+        <div class="space-y-2">
+          <label class="text-[10px] font-bold text-soft uppercase tracking-widest ml-1">Nhà xuất bản</label>
+          <input v-model="form.publisher"
+            class="w-full px-4 py-3 bg-bg-strong border-transparent focus:bg-white focus:border-brand/20 rounded-2xl text-sm font-medium transition-all outline-none" />
+        </div>
+
+        <div class="space-y-2 md:col-span-2">
+          <label class="text-[10px] font-bold text-soft uppercase tracking-widest ml-1">URL bài gốc</label>
+          <input v-model="form.url"
+            class="w-full px-4 py-3 bg-bg-strong border-transparent focus:bg-white focus:border-brand/20 rounded-2xl text-sm font-medium transition-all outline-none"
+            placeholder="https://..." />
+        </div>
+
+        <div class="space-y-2 md:col-span-2">
+          <label class="text-[10px] font-bold text-soft uppercase tracking-widest ml-1">Ảnh đại diện (URL)</label>
+          <input v-model="form.image_url"
+            class="w-full px-4 py-3 bg-bg-strong border-transparent focus:bg-white focus:border-brand/20 rounded-2xl text-sm font-medium transition-all outline-none"
+            placeholder="https://..." />
+        </div>
+
+        <div class="space-y-2">
+          <label class="text-[10px] font-bold text-soft uppercase tracking-widest ml-1">Ngày xuất bản</label>
+          <input v-model="form.published_at" type="date"
+            class="w-full px-4 py-3 bg-bg-strong border-transparent focus:bg-white focus:border-brand/20 rounded-2xl text-sm font-medium transition-all outline-none" />
+        </div>
+
+        <div class="space-y-2">
+          <label class="text-[10px] font-bold text-soft uppercase tracking-widest ml-1">Điểm mức độ (0-10)</label>
+          <input v-model="form.severity_score" type="number" min="0" max="10"
+            class="w-full px-4 py-3 bg-bg-strong border-transparent focus:bg-white focus:border-brand/20 rounded-2xl text-sm font-medium transition-all outline-none" />
+        </div>
+
+        <div class="space-y-2 md:col-span-2">
+          <label class="text-[10px] font-bold text-soft uppercase tracking-widest ml-1">Tóm tắt nội dung</label>
+          <textarea v-model="form.summary" rows="4"
+            class="w-full px-4 py-3 bg-bg-strong border-transparent focus:bg-white focus:border-brand/20 rounded-2xl text-sm font-medium transition-all outline-none resize-none"
+            placeholder="Nhập tóm tắt..."></textarea>
+        </div>
       </div>
     </template>
   </EntityCrudPanel>

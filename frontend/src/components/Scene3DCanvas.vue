@@ -185,7 +185,7 @@ async function loadSceneAssets() {
           normalizeModelHeight(tree, treeName.includes('palm') ? 14 : 11)
           assetLibrary.trees.push(tree)
         })
-        .catch(() => {})
+        .catch(() => { })
     )
   }
 
@@ -722,11 +722,11 @@ function makeTreeGroup(feature, center, terrain, lod) {
   const spriteMaterial = useTreeAssets
     ? null
     : new THREE.SpriteMaterial({
-        map: texture,
-        transparent: true,
-        alphaTest: 0.18,
-        depthWrite: false,
-      })
+      map: texture,
+      transparent: true,
+      alphaTest: 0.18,
+      depthWrite: false,
+    })
 
   for (const sample of samples) {
     const baseElevation = sampleTerrainElevation(sample.longitude, sample.latitude, terrain)
@@ -1080,10 +1080,10 @@ function buildTileGroup(tile, lod) {
       feature.geometryType === 'line'
         ? makeLinearFeatureLine(feature, center, terrain, { color: feature.color || TILE_COLORS.water, altitudeOffset: 0.12 })
         : makePolygonSurface(feature, center, terrain, {
-            color: feature.color || TILE_COLORS.water,
-            altitudeOffset: 0.12,
-            opacity: 0.88,
-          })
+          color: feature.color || TILE_COLORS.water,
+          altitudeOffset: 0.12,
+          opacity: 0.88,
+        })
     if (mesh) group.add(setPickMetadata(mesh, 'water', feature, tileId))
     if (shouldRenderWaterLabelAtLod(lod) && feature.labelAnchor && feature.name) {
       const label = makeLabel(feature.labelAnchor, feature.name, center, terrain)
@@ -1109,17 +1109,17 @@ function buildTileGroup(tile, lod) {
     const mesh =
       lod === 'near'
         ? makeLinearFeatureMesh(railway, center, terrain, {
-            color: TILE_COLORS.rail,
-            radius: Math.max(railway.widthMeters / 5, 1.2),
-            tubularSegments: Math.max(18, railway.centerline.length * 4),
-            altitudeOffset: 0.32,
-            metalness: 0.08,
-          })
+          color: TILE_COLORS.rail,
+          radius: Math.max(railway.widthMeters / 5, 1.2),
+          tubularSegments: Math.max(18, railway.centerline.length * 4),
+          altitudeOffset: 0.32,
+          metalness: 0.08,
+        })
         : makeLinearFeatureLine(railway, center, terrain, {
-            color: TILE_COLORS.rail,
-            opacity: lod === 'mid' ? 0.95 : 0.82,
-            altitudeOffset: 0.28,
-          })
+          color: TILE_COLORS.rail,
+          opacity: lod === 'mid' ? 0.95 : 0.82,
+          altitudeOffset: 0.28,
+        })
     if (mesh) group.add(setPickMetadata(mesh, 'railway', railway, tileId))
     if (lod === 'near' && railway.name && railway.labelAnchor) {
       const label = makeLabel(railway.labelAnchor, railway.name, center, terrain)
