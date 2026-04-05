@@ -51,6 +51,17 @@ async function request(path, options = {}) {
     return blob
   }
 
+  if (!contentType.includes('application/json')) {
+    const rawText = await response.text()
+    const looksLikeHtml = /^\s*</.test(rawText)
+    if (looksLikeHtml) {
+      throw new Error(
+        'API đang trả về HTML thay vì JSON. Production hiện chưa trỏ đúng backend /api.'
+      )
+    }
+    throw new Error(`API trả về content-type không hợp lệ: ${contentType || 'unknown'}`)
+  }
+
   const data = await response.json()
   if (!response.ok) {
     throw new Error(data.detail || `API error: ${response.status}`)

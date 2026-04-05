@@ -1,7 +1,13 @@
 <script setup>
 import maplibregl from 'maplibre-gl'
 import { nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import {
+  Box, Layers, Info, Map as MapIcon,
+  Navigation, Zap, Shield, AlertCircle,
+  Loader2, Maximize2, MousePointer2, Compass
+} from 'lucide-vue-next'
 import { fetchCrossings, fetchScene3DManifest, fetchScene3DTile } from '../api'
+import { locateUser } from '../stores/publicData'
 
 const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_KEY || ''
 const VIEWPORT_PADDING_DEGREES = 0.02
@@ -10,6 +16,7 @@ const DEFAULT_BEARING = -22
 const DEFAULT_TERRAIN_EXAGGERATION = 1.7
 
 const mapRoot = ref(null)
+const sceneShell = ref(null)
 
 const state = reactive({
   loading: true,
@@ -17,6 +24,12 @@ const state = reactive({
   manifest: null,
   crossings: [],
   loadedTiles: 0,
+  showStats: false,
+  freeLook: false,
+  fullscreen: false,
+  locating: false,
+  locationError: '',
+  userLocation: null,
   rendered: {
     crossings: 0,
     roads: 0,
@@ -114,6 +127,29 @@ function intersectsBounds(a, b) {
   return !(a.east < b.west || a.west > b.east || a.north < b.south || a.south > b.north)
 }
 
+function pointInBounds(point, bounds) {
+  const longitude = Number(point?.longitude)
+  const latitude = Number(point?.latitude)
+  if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) return false
+
+  return (
+    longitude >= bounds.west &&
+    longitude <= bounds.east &&
+    latitude >= bounds.south &&
+    latitude <= bounds.north
+  )
+}
+
+function viewportBounds() {
+  const bounds = map.getBounds()
+  return {
+    west: bounds.getWest(),
+    south: bounds.getSouth(),
+    east: bounds.getEast(),
+    north: bounds.getNorth(),
+  }
+}
+
 function paddedViewportBounds() {
   const bounds = map.getBounds()
   return {
@@ -182,6 +218,32 @@ function polygonCoordinates(feature) {
   return [outer, ...holes]
 }
 
+function metersToLatitudeDegrees(meters) {
+  return meters / 111320
+}
+
+function metersToLongitudeDegrees(meters, latitude) {
+  const cosine = Math.cos((latitude * Math.PI) / 180)
+  const safeCosine = Math.max(Math.abs(cosine), 0.0001)
+  return meters / (111320 * safeCosine)
+}
+
+function createCirclePolygon(center, radiusMeters, steps = 48) {
+  const longitude = Number(center?.longitude)
+  const latitude = Number(center?.latitude)
+  if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) return null
+
+  const coordinates = []
+  for (let index = 0; index <= steps; index += 1) {
+    const angle = (Math.PI * 2 * index) / steps
+    const latOffset = metersToLatitudeDegrees(radiusMeters * Math.sin(angle))
+    const lngOffset = metersToLongitudeDegrees(radiusMeters * Math.cos(angle), latitude)
+    coordinates.push([longitude + lngOffset, latitude + latOffset])
+  }
+
+  return coordinates
+}
+
 function toCrossingFeatures(items) {
   return (items || [])
     .map((item) => {
@@ -201,6 +263,41 @@ function toCrossingFeatures(items) {
       }
     })
     .filter(Boolean)
+}
+
+function toUserLocationFeatures() {
+  if (!state.userLocation?.latitude || !state.userLocation?.longitude) return []
+
+  return [
+    {
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: [Number(state.userLocation.longitude), Number(state.userLocation.latitude)],
+      },
+      properties: {
+        label: state.userLocation.label || 'Vị trí của tôi',
+      },
+    },
+  ]
+}
+
+function toUserAccuracyFeatures() {
+  if (!state.userLocation?.latitude || !state.userLocation?.longitude) return []
+
+  const radiusMeters = Math.max(50, Number(state.userLocation.accuracy || 120))
+  const polygon = createCirclePolygon(state.userLocation, radiusMeters)
+  if (!polygon?.length) return []
+
+  return [
+    {
+      type: 'Feature',
+      geometry: { type: 'Polygon', coordinates: [polygon] },
+      properties: {
+        label: state.userLocation.label || 'Vị trí của tôi',
+      },
+    },
+  ]
 }
 
 function toLineFeatures(items, featureType) {
@@ -256,6 +353,8 @@ function ensureSceneSources() {
     'scene-buildings',
     'scene-landuse',
     'scene-water',
+    'scene-user-location',
+    'scene-user-accuracy',
   ]
 
   sources.forEach((name) => {
@@ -408,6 +507,47 @@ function ensureSceneLayers() {
         'text-halo-width': 1.2,
       },
     },
+    {
+      id: 'scene-user-accuracy',
+      type: 'fill',
+      source: 'scene-user-accuracy',
+      paint: {
+        'fill-color': '#93c5fd',
+        'fill-opacity': 0.14,
+      },
+    },
+    {
+      id: 'scene-user-accuracy-outline',
+      type: 'line',
+      source: 'scene-user-accuracy',
+      paint: {
+        'line-color': '#3b82f6',
+        'line-width': 1.2,
+        'line-opacity': 0.9,
+      },
+    },
+    {
+      id: 'scene-user-location-halo',
+      type: 'circle',
+      source: 'scene-user-location',
+      paint: {
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 12, 16, 16],
+        'circle-color': 'rgba(59,130,246,0.16)',
+        'circle-stroke-width': 2,
+        'circle-stroke-color': 'rgba(255,255,255,0.92)',
+      },
+    },
+    {
+      id: 'scene-user-location',
+      type: 'circle',
+      source: 'scene-user-location',
+      paint: {
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 6, 16, 8],
+        'circle-color': '#3b82f6',
+        'circle-stroke-width': 3,
+        'circle-stroke-color': '#ffffff',
+      },
+    },
   ]
 
   layers.forEach((layer) => {
@@ -424,8 +564,9 @@ function applyGeoJson(name, features) {
   })
 }
 
-function updateRenderedStats(payloads) {
-  const crossingCount = state.crossings.length
+function updateRenderedStats(payloads, visibleTiles) {
+  const bounds = viewportBounds()
+  const crossingCount = state.crossings.filter((crossing) => pointInBounds(crossing, bounds)).length
   state.rendered = payloads.reduce(
     (acc, tile) => {
       acc.roads += tile.roads?.length || 0
@@ -445,6 +586,7 @@ function updateRenderedStats(payloads) {
     }
   )
   state.rendered.crossings = crossingCount
+  state.loadedTiles = visibleTiles.length
 }
 
 async function syncViewportData() {
@@ -455,8 +597,7 @@ async function syncViewportData() {
   const payloads = await Promise.all(tiles.map((tile) => ensureTileLoaded(tile)))
   if (requestId !== syncRequestId) return
 
-  state.loadedTiles = tileCache.size
-  updateRenderedStats(payloads)
+  updateRenderedStats(payloads, tiles)
 
   applyGeoJson('scene-crossings', toCrossingFeatures(state.crossings))
   applyGeoJson('scene-roads', payloads.flatMap((tile) => toLineFeatures(tile.roads, 'road')))
@@ -464,6 +605,8 @@ async function syncViewportData() {
   applyGeoJson('scene-buildings', payloads.flatMap((tile) => toPolygonFeatures(tile.buildings, 'building')))
   applyGeoJson('scene-landuse', payloads.flatMap((tile) => toPolygonFeatures(tile.landuse, 'landuse')))
   applyGeoJson('scene-water', payloads.flatMap((tile) => toPolygonFeatures(tile.water, 'water')))
+  applyGeoJson('scene-user-location', toUserLocationFeatures())
+  applyGeoJson('scene-user-accuracy', toUserAccuracyFeatures())
 }
 
 function queueViewportSync() {
@@ -485,9 +628,23 @@ function setupCrossingPopup() {
     new maplibregl.Popup({ closeButton: true, closeOnClick: true })
       .setLngLat([longitude, latitude])
       .setHTML(
-        `<strong>${name || 'Điểm giao cắt'}</strong><br/>Mã: ${code || 'n/a'}<br/>Mức độ: ${
-          riskLevel || 'unknown'
-        }<br/>Điểm rủi ro: ${riskScore || 0}`
+        `<div class="p-2 min-w-[180px]">
+          <h4 class="font-bold text-sm mb-1">${name || 'Điểm giao cắt'}</h4>
+          <div class="flex flex-col gap-1 text-xs">
+            <div class="flex justify-between">
+              <span class="text-soft">Mã:</span>
+              <span class="font-mono font-bold">${code || 'n/a'}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-soft">Mức độ:</span>
+              <span class="font-bold ${riskLevel === 'very_high' ? 'text-danger' : 'text-brand'}">${riskLevel || 'unknown'}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-soft">Điểm rủi ro:</span>
+              <span class="font-bold">${riskScore || 0}</span>
+            </div>
+          </div>
+        </div>`
       )
       .addTo(map)
   })
@@ -526,6 +683,7 @@ function configureLighting() {
 function focusBienHoa() {
   const bounds = bienHoaFocusBounds()
   if (!bounds) return
+  state.freeLook = false
 
   map.fitBounds(
     [
@@ -540,6 +698,68 @@ function focusBienHoa() {
       duration: 0,
     }
   )
+}
+
+function toggleFreeLook() {
+  if (!map) return
+
+  state.freeLook = !state.freeLook
+  if (state.freeLook) {
+    map.easeTo({
+      pitch: 48,
+      bearing: 0,
+      duration: 700,
+      essential: true,
+    })
+    return
+  }
+
+  focusBienHoa()
+}
+
+async function toggleFullscreen() {
+  if (!sceneShell.value) return
+
+  if (document.fullscreenElement === sceneShell.value) {
+    await document.exitFullscreen()
+    return
+  }
+
+  await sceneShell.value.requestFullscreen()
+}
+
+function handleFullscreenChange() {
+  state.fullscreen = document.fullscreenElement === sceneShell.value
+  window.setTimeout(() => {
+    map?.resize()
+  }, 80)
+}
+
+async function locateAndFlyToUser() {
+  if (!map || state.locating) return
+
+  state.locating = true
+  state.locationError = ''
+
+  try {
+    const location = await locateUser()
+    state.userLocation = location
+
+    applyGeoJson('scene-user-location', toUserLocationFeatures())
+    applyGeoJson('scene-user-accuracy', toUserAccuracyFeatures())
+
+    map.flyTo({
+      center: [location.longitude, location.latitude],
+      zoom: Math.max(map.getZoom(), 15),
+      pitch: state.freeLook ? 48 : DEFAULT_PITCH,
+      bearing: state.freeLook ? 0 : DEFAULT_BEARING,
+      essential: true,
+    })
+  } catch (error) {
+    state.locationError = error.message || 'Không thể lấy vị trí hiện tại.'
+  } finally {
+    state.locating = false
+  }
 }
 
 function initializeMap() {
@@ -592,18 +812,209 @@ async function loadScene() {
 
 onMounted(loadScene)
 
+onMounted(() => {
+  document.addEventListener('fullscreenchange', handleFullscreenChange)
+})
+
 onBeforeUnmount(() => {
   if (syncTimer) window.clearTimeout(syncTimer)
+  document.removeEventListener('fullscreenchange', handleFullscreenChange)
   map?.remove()
 })
 </script>
 
 <template>
-  <section class="page-grid scene3d-page">
-    <section class="map-surface scene3d-surface">
-      <div v-if="state.loading" class="empty-state">Đang tải manifest và khởi tạo MapLibre...</div>
-      <div v-else-if="state.error" class="error-box">{{ state.error }}</div>
-      <div v-else ref="mapRoot" class="scene3d-map"></div>
-    </section>
-  </section>
+  <div ref="sceneShell" class="scene3d-page relative w-full h-[calc(100vh-80px)] overflow-hidden bg-bg-strong"
+    :class="{ 'h-screen': state.fullscreen }">
+    <!-- Loading Overlay -->
+    <div v-if="state.loading"
+      class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/80 backdrop-blur-md">
+      <div class="w-16 h-16 rounded-2xl bg-brand flex items-center justify-center shadow-xl shadow-brand/20 mb-6">
+        <Loader2 class="text-white animate-spin" :size="32" />
+      </div>
+      <h3 class="text-xl font-bold text-text mb-2">Khởi tạo không gian 3D</h3>
+      <p class="text-soft text-sm max-w-xs text-center">Đang tải manifest và dữ liệu địa hình MapLibre GL JS...</p>
+    </div>
+
+    <!-- Error Overlay -->
+    <div v-else-if="state.error"
+      class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white px-6 text-center">
+      <div class="w-16 h-16 rounded-2xl bg-danger-soft flex items-center justify-center mb-6">
+        <AlertCircle class="text-danger" :size="32" />
+      </div>
+      <h3 class="text-xl font-bold text-text mb-2">Lỗi khởi tạo</h3>
+      <p class="text-soft text-sm mb-6 max-w-md">{{ state.error }}</p>
+      <button @click="loadScene" class="primary-button">Thử lại</button>
+    </div>
+
+    <!-- Map Container -->
+    <div ref="mapRoot" class="w-full h-full"></div>
+
+    <!-- Floating UI Controls -->
+    <div class="absolute top-8 left-8 z-40 flex flex-col gap-6 pointer-events-none">
+      <!-- Scene Info Card -->
+      <div
+        class="pointer-events-auto bg-white/90 backdrop-blur-xl border border-line p-6 rounded-[32px] shadow-2xl shadow-black/10 w-80">
+        <div class="flex items-center gap-4 mb-6">
+          <div
+            class="w-12 h-12 rounded-2xl bg-brand text-white flex items-center justify-center shadow-xl shadow-brand/20">
+            <Box :size="24" />
+          </div>
+          <div>
+            <h3 class="text-lg font-black text-text leading-tight">Digital Twin</h3>
+            <p class="text-[10px] font-black text-soft uppercase tracking-widest">Biên Hòa 3D Engine</p>
+          </div>
+        </div>
+
+        <div class="space-y-4">
+          <div class="flex items-center justify-between text-xs">
+            <span class="text-soft flex items-center gap-2 font-bold uppercase tracking-wider text-[9px]">
+              <MapIcon :size="14" /> Khu vực:
+            </span>
+            <span class="font-black text-text">Biên Hòa, ĐN</span>
+          </div>
+          <div class="flex items-center justify-between text-xs">
+            <span class="text-soft flex items-center gap-2 font-bold uppercase tracking-wider text-[9px]">
+              <Layers :size="14" /> Tiles:
+            </span>
+            <span class="font-black text-brand">{{ state.loadedTiles }}</span>
+          </div>
+          <div class="flex items-center justify-between text-xs">
+            <span class="text-soft flex items-center gap-2 font-bold uppercase tracking-wider text-[9px]">
+              <Zap :size="14" /> Hiệu năng:
+            </span>
+            <span
+              class="px-2 py-1 bg-brand-soft text-brand rounded-lg font-black text-[9px] uppercase tracking-wider">Tối
+              ưu</span>
+          </div>
+        </div>
+
+        <div class="mt-6 pt-5 border-t border-line">
+          <button @click="state.showStats = !state.showStats"
+            class="w-full flex items-center justify-center gap-2 py-3 bg-bg-strong hover:bg-line rounded-2xl text-xs font-black uppercase tracking-widest transition-all">
+            <Info :size="16" />
+            {{ state.showStats ? 'Ẩn chi tiết' : 'Xem thống kê' }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Stats Panel (Conditional) -->
+      <transition enter-active-class="transition duration-300 ease-out"
+        enter-from-class="transform -translate-x-4 opacity-0" enter-to-class="transform translate-x-0 opacity-100"
+        leave-active-class="transition duration-200 ease-in" leave-from-class="transform translate-x-0 opacity-100"
+        leave-to-class="transform -translate-x-4 opacity-0">
+        <div v-if="state.showStats"
+          class="pointer-events-auto bg-surface-dark/90 backdrop-blur-md p-5 rounded-2xl shadow-2xl w-72 text-white">
+          <h4 class="text-xs font-bold text-white/40 uppercase tracking-widest mb-4">Thống kê thực thể</h4>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="bg-white/5 p-3 rounded-xl border border-white/10">
+              <p class="text-[10px] text-white/40 mb-1">Giao cắt</p>
+              <p class="text-lg font-bold">{{ state.rendered.crossings }}</p>
+            </div>
+            <div class="bg-white/5 p-3 rounded-xl border border-white/10">
+              <p class="text-[10px] text-white/40 mb-1">Tòa nhà</p>
+              <p class="text-lg font-bold">{{ state.rendered.buildings }}</p>
+            </div>
+            <div class="bg-white/5 p-3 rounded-xl border border-white/10">
+              <p class="text-[10px] text-white/40 mb-1">Đường bộ</p>
+              <p class="text-lg font-bold">{{ state.rendered.roads }}</p>
+            </div>
+            <div class="bg-white/5 p-3 rounded-xl border border-white/10">
+              <p class="text-[10px] text-white/40 mb-1">Đường sắt</p>
+              <p class="text-lg font-bold">{{ state.rendered.railways }}</p>
+            </div>
+          </div>
+        </div>
+      </transition>
+      <div v-if="state.locationError"
+        class="pointer-events-auto bg-danger-soft/95 border border-danger/15 text-danger p-4 rounded-2xl shadow-xl w-72 text-xs font-bold leading-relaxed">
+        {{ state.locationError }}
+      </div>
+    </div>
+
+    <!-- Bottom Controls -->
+    <div
+      class="absolute bottom-8 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 bg-white/90 backdrop-blur-md border border-line p-2 rounded-2xl shadow-2xl pointer-events-auto">
+      <button @click="locateAndFlyToUser" :disabled="state.locating"
+        class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-50 disabled:cursor-wait"
+        :class="state.userLocation ? 'bg-brand text-white shadow-lg shadow-brand/20' : 'hover:bg-bg-strong text-soft hover:text-brand'">
+        <Navigation :size="16" :class="state.userLocation ? 'text-white' : 'text-brand'" />
+        {{ state.locating ? 'Đang định vị' : 'Vị trí của tôi' }}
+      </button>
+      <div class="w-px h-4 bg-line mx-1"></div>
+      <button @click="focusBienHoa"
+        class="flex items-center gap-2 px-4 py-2 hover:bg-bg-strong rounded-xl text-xs font-bold transition-all">
+        <Compass :size="16" class="text-brand" />
+        Mặc định
+      </button>
+      <div class="w-px h-4 bg-line mx-1"></div>
+      <button @click="toggleFreeLook"
+        class="p-2 rounded-xl transition-all"
+        :class="state.freeLook ? 'bg-brand text-white shadow-lg shadow-brand/20' : 'text-soft hover:text-brand hover:bg-bg-strong'"
+        title="Góc nhìn tự do">
+        <MousePointer2 :size="18" />
+      </button>
+      <button @click="toggleFullscreen"
+        class="p-2 rounded-xl transition-all"
+        :class="state.fullscreen ? 'bg-brand text-white shadow-lg shadow-brand/20' : 'text-soft hover:text-brand hover:bg-bg-strong'"
+        title="Toàn màn hình">
+        <Maximize2 :size="18" />
+      </button>
+    </div>
+
+    <!-- Map Legend (Bottom Right) -->
+    <div class="absolute bottom-8 right-8 z-40 flex flex-col gap-2 pointer-events-none">
+      <div class="pointer-events-auto bg-white/90 backdrop-blur-md border border-line p-4 rounded-2xl shadow-xl w-48">
+        <h4 class="text-[10px] font-bold text-soft uppercase tracking-widest mb-3">Chú giải rủi ro</h4>
+        <div class="space-y-2">
+          <div class="flex items-center gap-3">
+            <div class="w-3 h-3 rounded-full bg-danger shadow-sm shadow-danger/40"></div>
+            <span class="text-xs font-medium">Rất cao</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="w-3 h-3 rounded-full bg-warning shadow-sm shadow-warning/40"></div>
+            <span class="text-xs font-medium">Cao</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="w-3 h-3 rounded-full bg-brand shadow-sm shadow-brand/40"></div>
+            <span class="text-xs font-medium">An toàn</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
+
+<style>
+/* MapLibre Popup Customization */
+.maplibregl-popup-content {
+  padding: 0;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+}
+
+.maplibregl-popup-close-button {
+  padding: 4px 8px;
+  font-size: 16px;
+  color: var(--soft);
+  outline: none !important;
+}
+
+.maplibregl-popup-close-button:hover {
+  background: transparent;
+  color: var(--danger);
+}
+
+.maplibregl-ctrl-group {
+  border: 1px solid var(--line) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05) !important;
+  overflow: hidden;
+}
+
+.maplibregl-ctrl-group button {
+  width: 36px !important;
+  height: 36px !important;
+}
+</style>

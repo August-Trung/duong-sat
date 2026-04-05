@@ -1,5 +1,16 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import {
+  Plus, Search, Filter, MoreVertical,
+  Edit2, Trash2, Eye, Check, X,
+  Upload, Image as ImageIcon, FileJson,
+  ChevronLeft, ChevronRight, Maximize2,
+  Star, ArrowUp, ArrowDown, Download,
+  MapPin, Shield, AlertTriangle, Info,
+  Loader2, CheckCircle2, AlertCircle,
+  Clock, User, Navigation, Camera,
+  FileDown, Activity
+} from 'lucide-vue-next'
 import CoordinatePickerMap from '../components/CoordinatePickerMap.vue'
 import {
   bulkCrossings,
@@ -365,383 +376,490 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="admin-board admin-board--crossings">
-    <section class="content-card">
-      <div class="section-head">
+  <div class="admin-crossings space-y-8 pb-20">
+    <!-- Header & Bulk Actions -->
+    <div
+      class="bg-white p-8 rounded-3xl border border-line shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div class="flex items-center gap-5">
+        <div class="w-14 h-14 rounded-2xl bg-brand-soft text-brand flex items-center justify-center shadow-inner">
+          <MapPin :size="28" />
+        </div>
         <div>
-          <p class="micro-label">Điểm giao cắt</p>
-          <h3>Chi tiết điểm, thao tác hàng loạt và ảnh hiện trường</h3>
+          <div class="flex items-center gap-2 mb-1">
+            <span
+              class="px-2 py-0.5 bg-brand-soft text-brand text-[10px] font-bold rounded uppercase tracking-wider">Quản
+              lý hạ tầng</span>
+            <span class="w-1 h-1 bg-soft rounded-full"></span>
+            <span class="text-soft text-xs font-medium">{{ rows.length }} điểm giao cắt</span>
+          </div>
+          <h1 class="text-2xl font-bold text-text">Danh mục điểm giao cắt</h1>
         </div>
-        <span class="soft-badge soft-badge--accent">{{ rows.length }} bản ghi</span>
       </div>
 
-      <div class="toolbar-actions">
-        <label class="field field--compact">
-          <span>Thao tác</span>
-          <select v-model="bulkAction">
+      <div class="flex flex-wrap items-center gap-3">
+        <div class="flex items-center bg-bg-strong rounded-2xl p-1 border border-line/50">
+          <select v-model="bulkAction"
+            class="bg-transparent text-xs font-bold px-4 py-2 outline-none border-r border-line">
             <option value="set_verification_status">Đổi trạng thái</option>
-            <option value="assign_manager">Gán người quản lý</option>
-            <option value="export_csv">Xuất CSV đã chọn</option>
+            <option value="assign_manager">Gán quản lý</option>
+            <option value="export_csv">Xuất CSV</option>
             <option v-if="canDelete" value="soft_delete">Ẩn bản ghi</option>
-            <option v-if="canDelete" value="restore">Khôi phục</option>
           </select>
-        </label>
 
-        <label v-if="bulkAction === 'set_verification_status'" class="field field--compact">
-          <span>Giá trị</span>
-          <select v-model="bulkValue">
-            <option value="draft">Bản nháp</option>
-            <option value="surveyed">Đã khảo sát</option>
-            <option value="verified">Đã xác minh</option>
-          </select>
-        </label>
-
-        <label v-if="bulkAction === 'assign_manager'" class="field">
-          <span>Người quản lý</span>
-          <input v-model="bulkValue" placeholder="Tên người phụ trách" />
-        </label>
-
-        <button class="primary-button" @click="applyBulkAction">
-          Áp dụng cho {{ selectedIds.length }} mục
-        </button>
-      </div>
-    </section>
-
-    <div class="admin-crossings-grid">
-      <section class="content-card admin-crossings-list">
-        <div class="section-head">
-          <div>
-            <p class="micro-label">Danh sách</p>
-            <h3>Chọn điểm để xem chi tiết</h3>
-          </div>
-        </div>
-
-        <div class="stack-list admin-registry admin-registry--dense">
-          <article v-for="item in rows" :key="item.id" class="registry-row registry-row--compact">
-            <div class="registry-row__select">
-              <input
-                :checked="selectedIds.includes(item.id)"
-                type="checkbox"
-                @change="toggleSelection(item.id)"
-              />
-              <div>
-                <strong>{{ item.name }}</strong>
-                <span>{{ item.code }} · {{ verificationLabel(item.verification_status) }}</span>
-              </div>
-            </div>
-
-            <div class="toolbar-actions">
-              <button class="secondary-button" @click="loadProfile(item.id)">Chi tiết</button>
-              <button class="secondary-button" :disabled="!canEdit" @click="startEdit(item)">Sửa</button>
-              <button
-                class="secondary-button danger-text"
-                :disabled="!canDelete"
-                @click="removeCrossing(item.id)"
-              >
-                Ẩn
-              </button>
-            </div>
-          </article>
-        </div>
-      </section>
-
-      <section class="content-card admin-crossings-form">
-        <div class="section-head">
-          <div>
-            <p class="micro-label">Biểu mẫu</p>
-            <h3>{{ editingId ? 'Chỉnh sửa điểm giao cắt' : 'Tạo điểm giao cắt mới' }}</h3>
-          </div>
-        </div>
-
-        <div class="form-grid">
-          <label class="field"><span>Mã</span><input v-model="form.code" /></label>
-          <label class="field"><span>Tên điểm</span><input v-model="form.name" /></label>
-          <label class="field"><span>Địa chỉ</span><input v-model="form.address" /></label>
-          <label class="field"><span>Phường</span><input v-model="form.ward" /></label>
-          <label class="field"><span>Quận/Huyện</span><input v-model="form.district" /></label>
-          <label class="field"><span>Tỉnh/Thành</span><input v-model="form.city" /></label>
-          <label class="field"><span>Vĩ độ</span><input v-model="form.latitude" type="number" step="0.000001" /></label>
-          <label class="field"><span>Kinh độ</span><input v-model="form.longitude" type="number" step="0.000001" /></label>
-          <label class="field">
-            <span>Trạng thái</span>
-            <select v-model="form.verification_status">
+          <template v-if="bulkAction === 'set_verification_status'">
+            <select v-model="bulkValue" class="bg-transparent text-xs font-bold px-4 py-2 outline-none">
               <option value="draft">Bản nháp</option>
               <option value="surveyed">Đã khảo sát</option>
               <option value="verified">Đã xác minh</option>
             </select>
-          </label>
-          <label class="field"><span>Người quản lý</span><input v-model="form.manager_name" /></label>
-          <label class="field"><span>Nguồn tọa độ</span><input v-model="form.coordinate_source" /></label>
-          <label class="field"><span>Tham chiếu</span><input v-model="form.source_reference" /></label>
-          <label class="field field-wide"><span>Ghi chú xác minh</span><textarea v-model="form.verification_notes"></textarea></label>
-          <label class="field field-wide"><span>Ghi chú chung</span><textarea v-model="form.notes"></textarea></label>
-          <div class="field field-wide">
-            <span>Chọn tọa độ trên bản đồ</span>
-            <CoordinatePickerMap
-              :model-value="{ latitude: form.latitude, longitude: form.longitude }"
-              :crossings="rows"
-              @update:model-value="
-                ({ latitude, longitude }) => {
-                  form.latitude = latitude
-                  form.longitude = longitude
-                }
-              "
-            />
-          </div>
+          </template>
+          <template v-else-if="bulkAction === 'assign_manager'">
+            <input v-model="bulkValue" placeholder="Tên..."
+              class="bg-transparent text-xs font-bold px-4 py-2 outline-none w-32" />
+          </template>
         </div>
 
-        <div class="toolbar-actions">
-          <button class="primary-button" :disabled="busy || !canEdit" @click="submitForm">
-            {{ busy ? 'Đang xử lý...' : editingId ? 'Lưu thay đổi' : 'Tạo mới' }}
-          </button>
-          <button class="secondary-button" @click="resetForm">Làm lại</button>
-        </div>
-      </section>
+        <button
+          class="flex items-center gap-2 px-5 py-2.5 bg-brand text-white rounded-xl font-bold text-sm hover:bg-brand-dark transition-all shadow-lg shadow-brand/20 disabled:opacity-50"
+          :disabled="!selectedIds.length" @click="applyBulkAction">
+          <Check :size="18" />
+          Áp dụng ({{ selectedIds.length }})
+        </button>
+      </div>
     </div>
 
-    <div ref="profileSectionRef" class="admin-crossings-grid admin-crossings-grid--profile">
-      <section class="content-card admin-profile-card-large">
-        <div class="section-head">
-          <div>
-            <p class="micro-label">Chi tiết điểm</p>
-            <h3>{{ selectedProfile?.name || 'Chọn một điểm để xem chi tiết' }}</h3>
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      <!-- List Section -->
+      <div
+        class="lg:col-span-5 bg-white rounded-3xl border border-line shadow-sm overflow-hidden flex flex-col max-h-[800px]">
+        <div class="p-6 border-b border-line flex items-center justify-between bg-bg-strong/30">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-white text-brand flex items-center justify-center shadow-sm">
+              <ListIcon :size="20" />
+            </div>
+            <h3 class="font-bold text-text">Danh sách điểm</h3>
+          </div>
+          <div class="relative">
+            <Search class="absolute left-3 top-1/2 -translate-y-1/2 text-soft" :size="14" />
+            <input type="text" placeholder="Lọc nhanh..."
+              class="pl-9 pr-4 py-2 bg-white border border-line rounded-xl text-xs font-medium outline-none focus:border-brand/20 transition-all w-40" />
           </div>
         </div>
 
-        <div v-if="profileLoading" class="empty-note">Đang tải hồ sơ điểm...</div>
-
-        <template v-else-if="selectedProfile">
-          <div class="admin-profile-overview">
-            <div class="data-grid">
-              <article class="data-card"><span>Mã</span><strong>{{ selectedProfile.code }}</strong></article>
-              <article class="data-card"><span>Trạng thái</span><strong>{{ verificationLabel(selectedProfile.verification_status) }}</strong></article>
-              <article class="data-card"><span>Rủi ro</span><strong>{{ selectedProfile.risk_score }} điểm</strong></article>
-              <article class="data-card"><span>Người quản lý</span><strong>{{ selectedProfile.manager_name || 'Chưa có' }}</strong></article>
+        <div class="flex-1 overflow-y-auto custom-scrollbar divide-y divide-line">
+          <article v-for="item in rows" :key="item.id"
+            class="p-4 hover:bg-bg-strong/50 transition-all group flex items-center gap-4"
+            :class="{ 'bg-brand-soft/20': selectedProfile?.id === item.id }">
+            <div class="shrink-0">
+              <input :checked="selectedIds.includes(item.id)" type="checkbox"
+                class="w-5 h-5 rounded-lg border-line text-brand focus:ring-brand transition-all cursor-pointer"
+                @change="toggleSelection(item.id)" />
             </div>
-          </div>
 
-          <article class="content-block">
-            <div class="section-head">
-              <div>
-                <p class="micro-label">Ảnh hiện trường</p>
-                <h3>{{ selectedProfileImages.length + pendingFiles.length }} ảnh hiển thị</h3>
-              </div>
-
-              <div class="toolbar-actions">
-                <button
-                  v-if="canUpload && pendingFiles.length"
-                  class="primary-button"
-                  @click="uploadPendingFiles"
-                >
-                  Tải {{ pendingFiles.length }} ảnh
-                </button>
-                <button
-                  v-if="canUpload && selectedProfileImages.length"
-                  class="secondary-button"
-                  :disabled="savingGallery"
-                  @click="saveGallery()"
-                >
-                  {{ savingGallery ? 'Đang lưu...' : 'Lưu thứ tự ảnh' }}
-                </button>
-                <button
-                  v-if="canUpload && pendingFiles.length"
-                  class="secondary-button"
-                  @click="releasePendingFiles"
-                >
-                  Bỏ chọn
-                </button>
-                <button
-                  v-if="canUpload"
-                  class="secondary-button"
-                  type="button"
-                  @click="hiddenFileInput?.click()"
-                >
-                  Chọn file
-                </button>
+            <div class="flex-1 min-w-0 cursor-pointer" @click="loadProfile(item.id)">
+              <h4 class="font-bold text-text group-hover:text-brand transition-colors truncate">{{ item.name }}</h4>
+              <div class="flex items-center gap-2 mt-1">
+                <span class="text-[10px] font-bold text-soft font-mono">#{{ item.code }}</span>
+                <span class="w-1 h-1 bg-line rounded-full"></span>
+                <span class="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider" :class="{
+                  'bg-brand-soft text-brand': item.verification_status === 'verified',
+                  'bg-warning-soft text-warning': item.verification_status === 'surveyed',
+                  'bg-bg-strong text-soft': item.verification_status === 'draft'
+                }">
+                  {{ verificationLabel(item.verification_status) }}
+                </span>
               </div>
             </div>
 
-            <input
-              ref="hiddenFileInput"
-              class="hidden-file-input"
-              multiple
-              type="file"
-              accept="image/*"
-              @change="handleFileInput"
-            />
-
-            <div
-              v-if="canUpload"
-              class="dropzone"
-              :class="{ active: dragActive }"
-              @dragenter.prevent="onDragEnter"
-              @dragover.prevent="dragActive = true"
-              @dragleave="onDragLeave"
-              @drop.prevent="onDropFiles"
-            >
-              <strong>Kéo ảnh vào đây để tải nhiều file cùng lúc</strong>
-              <span>Hoặc bấm “Chọn file” để thêm ảnh cho điểm giao cắt này.</span>
+            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button @click="startEdit(item)"
+                class="p-2 text-soft hover:text-brand hover:bg-brand-soft rounded-lg transition-all" title="Sửa">
+                <Edit2 :size="16" />
+              </button>
+              <button @click="removeCrossing(item.id)"
+                class="p-2 text-soft hover:text-danger hover:bg-danger-soft rounded-lg transition-all" title="Ẩn">
+                <Trash2 :size="16" />
+              </button>
             </div>
-
-            <div v-if="selectedProfileImages.length" class="gallery-panel">
-              <div class="gallery-stage">
-                <button class="gallery-stage__nav" type="button" @click="prevCarousel">&#8249;</button>
-                <article class="gallery-stage__frame">
-                  <img
-                    v-if="activeCarouselImage"
-                    :src="imageSrc(activeCarouselImage)"
-                    :alt="activeCarouselImage.original_name"
-                    @click="openLightbox(activeCarouselImage)"
-                  />
-                </article>
-                <button class="gallery-stage__nav" type="button" @click="nextCarousel">&#8250;</button>
-              </div>
-
-              <div v-if="activeCarouselImage" class="gallery-stage__meta">
-                <div>
-                  <strong>
-                    {{ activeCarouselImage.original_name }}
-                    <span v-if="activeCarouselImage.is_cover" class="soft-badge">Ảnh đại diện</span>
-                  </strong>
-                  <span>{{ activeCarouselImage.uploaded_by_name || 'Không rõ người tải' }}</span>
-                </div>
-                <div class="toolbar-actions">
-                  <button class="secondary-button" @click="openLightbox(activeCarouselImage)">Xem lớn</button>
-                  <button
-                    v-if="canUpload && !activeCarouselImage.is_cover"
-                    class="secondary-button"
-                    :disabled="savingGallery"
-                    @click="setCoverImage(activeCarouselImage.id)"
-                  >
-                    Đặt làm ảnh đại diện
-                  </button>
-                  <button
-                    class="secondary-button danger-text"
-                    @click="removeImage(activeCarouselImage.id)"
-                  >
-                    Xóa ảnh
-                  </button>
-                </div>
-              </div>
-
-              <div class="gallery-strip">
-                <article
-                  v-for="(image, index) in selectedProfileImages"
-                  :key="image.id"
-                  class="gallery-thumb"
-                  :class="{ active: index === activeCarouselIndex }"
-                >
-                  <img :src="imageSrc(image)" :alt="image.original_name" @click="selectCarouselImage(index)" />
-                  <div class="gallery-thumb__meta">
-                    <strong>{{ index + 1 }}</strong>
-                    <span>{{ image.is_cover ? 'Đại diện' : 'Thư viện' }}</span>
-                  </div>
-                  <div class="gallery-thumb__actions">
-                    <button class="secondary-button" :disabled="index === 0 || savingGallery" @click="moveImage(index, -1)">
-                      Lên
-                    </button>
-                    <button
-                      class="secondary-button"
-                      :disabled="index === selectedProfileImages.length - 1 || savingGallery"
-                      @click="moveImage(index, 1)"
-                    >
-                      Xuống
-                    </button>
-                  </div>
-                </article>
-              </div>
-            </div>
-
-            <div v-if="pendingFiles.length" class="content-block">
-              <h4>Ảnh chờ tải lên</h4>
-              <div class="image-grid image-grid--compact">
-                <article
-                  v-for="image in pendingFiles"
-                  :key="image.id"
-                  class="image-card image-card--preview"
-                >
-                  <img :src="image.previewUrl" :alt="image.name" @click="openLightbox(image)" />
-                  <div class="image-card__meta">
-                    <strong>{{ image.name }}</strong>
-                    <span>{{ Math.round(image.size / 1024) }} KB</span>
-                    <button class="secondary-button danger-text" @click="removePendingFile(image.id)">
-                      Bỏ ảnh
-                    </button>
-                  </div>
-                </article>
-              </div>
-            </div>
-
-            <div v-if="!selectedProfileImages.length" class="empty-note">Chưa có ảnh cho điểm này.</div>
           </article>
+        </div>
+      </div>
 
-          <div class="admin-profile-sections">
-            <article class="content-block content-block--panel">
-              <h4>Cảnh báo chất lượng dữ liệu</h4>
-              <div class="stack-list">
-                <div
-                  v-for="alert in selectedProfile.quality_alerts || []"
-                  :key="alert.type + alert.title"
-                  class="stack-item"
-                >
-                  <strong>{{ alert.title }}</strong>
-                  <span>{{ alert.detail }}</span>
-                </div>
-              </div>
-            </article>
-
-            <article class="content-block content-block--panel">
-              <h4>Nhật ký thay đổi</h4>
-              <div class="stack-list">
-                <div v-for="log in selectedProfile.audit_logs || []" :key="log.id" class="stack-item">
-                  <strong>{{ log.summary }}</strong>
-                  <span>{{ log.username }} · {{ log.created_at }}</span>
-                </div>
-              </div>
-            </article>
+      <!-- Form Section -->
+      <div class="lg:col-span-7 bg-white rounded-3xl border border-line shadow-sm overflow-hidden">
+        <div class="p-6 border-b border-line flex items-center justify-between bg-bg-strong/30">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-white text-brand flex items-center justify-center shadow-sm">
+              <Plus v-if="!editingId" :size="20" />
+              <Edit2 v-else :size="20" />
+            </div>
+            <h3 class="font-bold text-text">{{ editingId ? 'Chỉnh sửa điểm giao cắt' : 'Tạo điểm mới' }}</h3>
           </div>
-        </template>
-      </section>
-
-      <section class="content-card admin-crossings-import">
-        <div class="section-head">
-          <div>
-            <p class="micro-label">Import hàng loạt</p>
-            <h3>Nhập danh sách điểm giao cắt bằng JSON</h3>
-          </div>
+          <button v-if="editingId" @click="resetForm"
+            class="p-2 text-soft hover:text-brand hover:bg-brand-soft rounded-lg transition-all">
+            <RotateCcw :size="18" />
+          </button>
         </div>
 
-        <label class="field">
-          <span>Dán JSON array đã chuẩn hóa</span>
-          <textarea
-            v-model="importText"
-            class="import-box"
-            placeholder='[{"code":"BH-001","name":"...","latitude":10.9,"longitude":106.8,"verification_status":"verified"}]'
-          ></textarea>
-        </label>
+        <div class="p-8 space-y-8">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="space-y-2">
+              <label class="text-[10px] font-bold text-soft uppercase tracking-widest ml-1">Mã điểm</label>
+              <input v-model="form.code"
+                class="w-full px-4 py-3 bg-bg-strong border-transparent focus:bg-white focus:border-brand/20 rounded-2xl text-sm font-medium transition-all outline-none"
+                placeholder="VD: BH-001" />
+            </div>
+            <div class="space-y-2">
+              <label class="text-[10px] font-bold text-soft uppercase tracking-widest ml-1">Tên điểm</label>
+              <input v-model="form.name"
+                class="w-full px-4 py-3 bg-bg-strong border-transparent focus:bg-white focus:border-brand/20 rounded-2xl text-sm font-medium transition-all outline-none"
+                placeholder="VD: Đường ngang Km 1695+410" />
+            </div>
+            <div class="space-y-2 md:col-span-2">
+              <label class="text-[10px] font-bold text-soft uppercase tracking-widest ml-1">Địa chỉ</label>
+              <input v-model="form.address"
+                class="w-full px-4 py-3 bg-bg-strong border-transparent focus:bg-white focus:border-brand/20 rounded-2xl text-sm font-medium transition-all outline-none"
+                placeholder="Số nhà, tên đường..." />
+            </div>
+            <div class="space-y-2">
+              <label class="text-[10px] font-bold text-soft uppercase tracking-widest ml-1">Phường/Xã</label>
+              <input v-model="form.ward"
+                class="w-full px-4 py-3 bg-bg-strong border-transparent focus:bg-white focus:border-brand/20 rounded-2xl text-sm font-medium transition-all outline-none" />
+            </div>
+            <div class="space-y-2">
+              <label class="text-[10px] font-bold text-soft uppercase tracking-widest ml-1">Quận/Huyện</label>
+              <input v-model="form.district"
+                class="w-full px-4 py-3 bg-bg-strong border-transparent focus:bg-white focus:border-brand/20 rounded-2xl text-sm font-medium transition-all outline-none" />
+            </div>
+            <div class="space-y-2">
+              <label class="text-[10px] font-bold text-soft uppercase tracking-widest ml-1">Vĩ độ (Lat)</label>
+              <input v-model="form.latitude" type="number" step="0.000001"
+                class="w-full px-4 py-3 bg-bg-strong border-transparent focus:bg-white focus:border-brand/20 rounded-2xl text-sm font-medium transition-all outline-none" />
+            </div>
+            <div class="space-y-2">
+              <label class="text-[10px] font-bold text-soft uppercase tracking-widest ml-1">Kinh độ (Lng)</label>
+              <input v-model="form.longitude" type="number" step="0.000001"
+                class="w-full px-4 py-3 bg-bg-strong border-transparent focus:bg-white focus:border-brand/20 rounded-2xl text-sm font-medium transition-all outline-none" />
+            </div>
+            <div class="space-y-2">
+              <label class="text-[10px] font-bold text-soft uppercase tracking-widest ml-1">Trạng thái hồ sơ</label>
+              <select v-model="form.verification_status"
+                class="w-full px-4 py-3 bg-bg-strong border-transparent focus:bg-white focus:border-brand/20 rounded-2xl text-sm font-medium transition-all outline-none appearance-none">
+                <option value="draft">Bản nháp</option>
+                <option value="surveyed">Đã khảo sát</option>
+                <option value="verified">Đã xác minh</option>
+              </select>
+            </div>
+            <div class="space-y-2">
+              <label class="text-[10px] font-bold text-soft uppercase tracking-widest ml-1">Người quản lý</label>
+              <input v-model="form.manager_name"
+                class="w-full px-4 py-3 bg-bg-strong border-transparent focus:bg-white focus:border-brand/20 rounded-2xl text-sm font-medium transition-all outline-none" />
+            </div>
+          </div>
 
-        <div class="toolbar-actions">
-          <button class="primary-button" @click="submitImport">Import vào hệ thống</button>
-        </div>
+          <div class="space-y-2">
+            <label class="text-[10px] font-bold text-soft uppercase tracking-widest ml-1">Chọn vị trí trên bản
+              đồ</label>
+            <div class="rounded-2xl overflow-hidden border border-line">
+              <CoordinatePickerMap :model-value="{ latitude: form.latitude, longitude: form.longitude }"
+                :crossings="rows" @update:model-value="
+                  ({ latitude, longitude }) => {
+                    form.latitude = latitude
+                    form.longitude = longitude
+                  }
+                " />
+            </div>
+          </div>
 
-        <p v-if="importMessage" class="success-box">{{ importMessage }}</p>
-        <p v-if="importError" class="error-box">{{ importError }}</p>
-        <p v-if="pageError" class="error-box">{{ pageError }}</p>
-      </section>
-    </div>
-
-    <div v-if="lightboxImage" class="lightbox" @click.self="closeLightbox">
-      <button class="lightbox__close" type="button" @click="closeLightbox">Đóng</button>
-      <div class="lightbox__content">
-        <img
-          :src="imageSrc(lightboxImage)"
-          :alt="lightboxImage.name || lightboxImage.original_name"
-        />
-        <div class="lightbox__meta">
-          <strong>{{ lightboxImage.name || lightboxImage.original_name }}</strong>
-          <span v-if="lightboxImage.uploaded_by_name">{{ lightboxImage.uploaded_by_name }}</span>
+          <div class="flex items-center gap-3 pt-4 border-t border-line">
+            <button
+              class="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-brand text-white rounded-2xl font-bold hover:bg-brand-dark transition-all shadow-lg shadow-brand/20 disabled:opacity-50"
+              :disabled="busy || !canEdit" @click="submitForm">
+              <Loader2 v-if="busy" :size="18" class="animate-spin" />
+              <CheckCircle2 v-else :size="18" />
+              {{ busy ? 'Đang xử lý...' : editingId ? 'Lưu thay đổi' : 'Tạo điểm mới' }}
+            </button>
+            <button
+              class="px-6 py-3 bg-bg-strong text-text rounded-2xl font-bold hover:bg-line transition-all disabled:opacity-50"
+              :disabled="busy" @click="resetForm">
+              Hủy
+            </button>
+          </div>
         </div>
       </div>
     </div>
-  </section>
+
+    <!-- Profile & Gallery Section -->
+    <div v-if="selectedProfile" ref="profileSectionRef" class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div class="lg:col-span-8 bg-white rounded-3xl border border-line shadow-sm overflow-hidden">
+        <div
+          class="p-8 border-b border-line flex flex-col md:flex-row md:items-center justify-between gap-6 bg-bg-strong/30">
+          <div class="flex items-center gap-5">
+            <div class="w-14 h-14 rounded-2xl bg-white text-brand flex items-center justify-center shadow-sm">
+              <Info :size="28" />
+            </div>
+            <div>
+              <div class="flex items-center gap-2 mb-1">
+                <span
+                  class="px-2 py-0.5 bg-brand-soft text-brand text-[10px] font-bold rounded uppercase tracking-wider">Hồ
+                  sơ chi tiết</span>
+                <span class="text-soft text-xs font-bold font-mono">#{{ selectedProfile.code }}</span>
+              </div>
+              <h2 class="text-2xl font-bold text-text">{{ selectedProfile.name }}</h2>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <button v-if="canUpload && pendingFiles.length"
+              class="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl font-bold text-xs hover:bg-brand-dark transition-all shadow-lg shadow-brand/20"
+              @click="uploadPendingFiles">
+              <Upload :size="14" /> Tải {{ pendingFiles.length }} ảnh
+            </button>
+            <button v-if="canUpload"
+              class="flex items-center gap-2 px-4 py-2 bg-white border border-line text-text rounded-xl font-bold text-xs hover:bg-bg-strong transition-all"
+              @click="hiddenFileInput?.click()">
+              <Plus :size="14" /> Thêm ảnh
+            </button>
+          </div>
+        </div>
+
+        <div class="p-8 space-y-10">
+          <!-- Gallery Stage -->
+          <div v-if="selectedProfileImages.length" class="space-y-6">
+            <div class="relative aspect-video bg-bg-strong rounded-3xl overflow-hidden group border border-line">
+              <img v-if="activeCarouselImage" :src="imageSrc(activeCarouselImage)"
+                :alt="activeCarouselImage.original_name" class="w-full h-full object-cover"
+                @click="openLightbox(activeCarouselImage)" />
+
+              <div
+                class="absolute inset-0 flex items-center justify-between px-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button @click="prevCarousel"
+                  class="w-10 h-10 rounded-full bg-white/90 text-text shadow-lg flex items-center justify-center hover:bg-white transition-all">
+                  <ChevronLeft :size="20" />
+                </button>
+                <button @click="nextCarousel"
+                  class="w-10 h-10 rounded-full bg-white/90 text-text shadow-lg flex items-center justify-center hover:bg-white transition-all">
+                  <ChevronRight :size="20" />
+                </button>
+              </div>
+
+              <div class="absolute bottom-6 left-6 right-6 flex items-center justify-between">
+                <div class="px-4 py-2 bg-black/60 backdrop-blur-md rounded-xl text-white">
+                  <p class="text-[10px] font-bold uppercase tracking-wider opacity-60">Tên file</p>
+                  <p class="text-xs font-bold">{{ activeCarouselImage?.original_name }}</p>
+                </div>
+                <div class="flex items-center gap-2">
+                  <button @click="setCoverImage(activeCarouselImage.id)"
+                    class="p-2.5 bg-white/90 backdrop-blur-md text-text hover:text-brand rounded-xl transition-all shadow-lg"
+                    title="Đặt làm ảnh bìa">
+                    <Star :size="18" :class="{ 'fill-brand text-brand': activeCarouselImage?.is_cover }" />
+                  </button>
+                  <button @click="removeImage(activeCarouselImage.id)"
+                    class="p-2.5 bg-white/90 backdrop-blur-md text-danger rounded-xl transition-all shadow-lg"
+                    title="Xóa ảnh">
+                    <Trash2 :size="18" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Thumbnails -->
+            <div class="flex items-center gap-3 overflow-x-auto pb-4 custom-scrollbar">
+              <div v-for="(image, index) in selectedProfileImages" :key="image.id"
+                class="shrink-0 w-24 aspect-square rounded-xl overflow-hidden border-2 cursor-pointer transition-all relative group"
+                :class="index === activeCarouselIndex ? 'border-brand shadow-lg scale-105' : 'border-transparent opacity-60 hover:opacity-100'"
+                @click="selectCarouselImage(index)">
+                <img :src="imageSrc(image)" class="w-full h-full object-cover" />
+                <div
+                  class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
+                  <button @click.stop="moveImage(index, -1)" class="p-1 bg-white rounded text-text hover:text-brand">
+                    <ArrowUp :size="12" />
+                  </button>
+                  <button @click.stop="moveImage(index, 1)" class="p-1 bg-white rounded text-text hover:text-brand">
+                    <ArrowDown :size="12" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div v-else
+            class="flex flex-col items-center justify-center py-20 text-center bg-bg-strong/50 rounded-3xl border-2 border-dashed border-line">
+            <Camera :size="48" class="text-soft/40 mb-4" />
+            <p class="text-soft font-bold">Chưa có ảnh hiện trường cho điểm này</p>
+            <button @click="hiddenFileInput?.click()" class="mt-4 text-brand font-bold text-sm hover:underline">Tải ảnh
+              ngay</button>
+          </div>
+
+          <!-- Pending Files -->
+          <div v-if="pendingFiles.length" class="space-y-4">
+            <div class="flex items-center justify-between">
+              <h4 class="font-bold text-text flex items-center gap-2">
+                <Upload :size="18" /> Ảnh chờ tải lên
+              </h4>
+              <button @click="releasePendingFiles" class="text-xs font-bold text-danger hover:underline">Hủy tất
+                cả</button>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div v-for="image in pendingFiles" :key="image.id"
+                class="relative aspect-square rounded-2xl overflow-hidden group border border-line">
+                <img :src="image.previewUrl" class="w-full h-full object-cover" />
+                <div
+                  class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <button @click="removePendingFile(image.id)" class="p-2 bg-danger text-white rounded-xl shadow-lg">
+                    <X :size="16" />
+                  </button>
+                </div>
+                <div class="absolute bottom-2 left-2 right-2 px-2 py-1 bg-black/40 backdrop-blur-sm rounded-lg">
+                  <p class="text-[8px] text-white font-bold truncate">{{ image.name }}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dropzone -->
+          <div v-if="canUpload"
+            class="p-10 rounded-3xl border-2 border-dashed border-line bg-bg-strong/30 flex flex-col items-center justify-center text-center transition-all cursor-pointer hover:bg-bg-strong/50 hover:border-brand/20"
+            :class="{ 'border-brand bg-brand-soft/20': dragActive }" @dragenter.prevent="onDragEnter"
+            @dragover.prevent="dragActive = true" @dragleave="onDragLeave" @drop.prevent="onDropFiles"
+            @click="hiddenFileInput?.click()">
+            <div class="w-16 h-16 rounded-2xl bg-white text-brand flex items-center justify-center shadow-sm mb-4">
+              <ImageIcon :size="32" />
+            </div>
+            <h4 class="font-bold text-text mb-1">Kéo thả ảnh vào đây</h4>
+            <p class="text-soft text-xs">Hoặc bấm để chọn file từ thiết bị (Hỗ trợ JPG, PNG, WEBP)</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Side Info (Right) -->
+      <div class="lg:col-span-4 space-y-8">
+        <!-- Quality Alerts -->
+        <div class="bg-white rounded-3xl border border-line shadow-sm overflow-hidden">
+          <div class="p-6 border-b border-line flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-danger-soft text-danger flex items-center justify-center">
+              <ShieldAlert :size="20" />
+            </div>
+            <h3 class="font-bold text-text">Cảnh báo dữ liệu</h3>
+          </div>
+          <div class="p-6 space-y-4">
+            <div v-if="!selectedProfile.quality_alerts?.length"
+              class="flex flex-col items-center justify-center py-8 text-center">
+              <CheckCircle2 :size="32" class="text-brand/20 mb-2" />
+              <p class="text-soft text-xs font-bold">Hồ sơ đạt chuẩn</p>
+            </div>
+            <div v-for="alert in selectedProfile.quality_alerts" :key="alert.title"
+              class="p-4 bg-danger-soft/30 rounded-2xl border border-danger/10">
+              <p class="text-sm font-bold text-danger mb-1">{{ alert.title }}</p>
+              <p class="text-xs text-danger/70 leading-relaxed">{{ alert.detail }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Audit Logs -->
+        <div class="bg-white rounded-3xl border border-line shadow-sm overflow-hidden">
+          <div class="p-6 border-b border-line flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-brand-soft text-brand flex items-center justify-center">
+              <Activity :size="20" />
+            </div>
+            <h3 class="font-bold text-text">Lịch sử thay đổi</h3>
+          </div>
+          <div class="p-2 max-h-[400px] overflow-y-auto custom-scrollbar">
+            <div v-for="log in selectedProfile.audit_logs" :key="log.id"
+              class="p-4 hover:bg-bg-strong rounded-2xl transition-all">
+              <p class="text-sm font-bold text-text mb-1">{{ log.summary }}</p>
+              <div class="flex items-center gap-2 text-[10px] font-bold text-soft uppercase tracking-wider">
+                <span class="flex items-center gap-1">
+                  <User :size="10" /> {{ log.username }}
+                </span>
+                <span class="w-1 h-1 bg-line rounded-full"></span>
+                <span>{{ log.created_at }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Import Section -->
+        <div class="bg-surface-dark rounded-3xl p-8 text-white shadow-2xl shadow-black/10">
+          <div class="flex items-center gap-4 mb-6">
+            <div class="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center">
+              <FileJson :size="24" class="text-brand" />
+            </div>
+            <div>
+              <h3 class="text-xl font-bold">Import JSON</h3>
+              <p class="text-white/40 text-sm">Nhập dữ liệu hàng loạt</p>
+            </div>
+          </div>
+
+          <textarea v-model="importText"
+            class="w-full h-32 bg-white/5 border border-white/10 rounded-2xl p-4 text-xs font-mono text-white/80 outline-none focus:border-brand/40 transition-all mb-4"
+            placeholder='[{"code":"BH-001", ...}]'></textarea>
+
+          <button @click="submitImport"
+            class="w-full py-3 bg-brand text-white rounded-2xl font-bold text-sm hover:bg-brand-dark transition-all shadow-lg shadow-brand/20">
+            Bắt đầu Import
+          </button>
+
+          <div v-if="importMessage"
+            class="mt-4 p-3 bg-brand/20 border border-brand/30 rounded-xl text-xs font-bold text-brand text-center">
+            {{ importMessage }}
+          </div>
+          <div v-if="importError"
+            class="mt-4 p-3 bg-danger/20 border border-danger/30 rounded-xl text-xs font-bold text-danger text-center">
+            {{ importError }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Lightbox -->
+    <div v-if="lightboxImage"
+      class="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex items-center justify-center p-6 md:p-12"
+      @click.self="closeLightbox">
+      <button @click="closeLightbox"
+        class="absolute top-8 right-8 w-12 h-12 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all flex items-center justify-center">
+        <X :size="24" />
+      </button>
+
+      <div class="max-w-5xl w-full h-full flex flex-col items-center justify-center gap-8">
+        <div class="relative w-full flex-1 flex items-center justify-center">
+          <img :src="imageSrc(lightboxImage)" class="max-w-full max-h-full object-contain rounded-2xl shadow-2xl" />
+        </div>
+
+        <div
+          class="w-full bg-white/10 backdrop-blur-md p-6 rounded-3xl border border-white/10 flex items-center justify-between">
+          <div>
+            <h4 class="text-white font-bold text-xl">{{ lightboxImage.original_name || lightboxImage.name }}</h4>
+            <p class="text-white/40 text-sm">Tải lên bởi {{ lightboxImage.uploaded_by_name || 'Hệ thống' }}</p>
+          </div>
+          <div class="flex items-center gap-3">
+            <button class="p-3 bg-white/10 text-white hover:bg-white/20 rounded-2xl transition-all">
+              <Download :size="20" />
+            </button>
+            <button class="p-3 bg-white/10 text-white hover:bg-white/20 rounded-2xl transition-all">
+              <Maximize2 :size="20" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <input ref="hiddenFileInput" type="file" multiple accept="image/*" class="hidden" @change="handleFileInput" />
+  </div>
 </template>
+
+<style scoped>
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 10px;
+}
+</style>

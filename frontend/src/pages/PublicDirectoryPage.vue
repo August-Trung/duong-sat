@@ -1,6 +1,11 @@
 <script setup>
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
+import {
+  MapPin, ShieldAlert, ChevronRight,
+  Search, Filter, LayoutGrid, List,
+  Clock, AlertCircle, Train, Info
+} from 'lucide-vue-next'
 import { loadCrossingDetail, publicFilters, publicState } from '../stores/publicData'
 import {
   applyCrossingFilters,
@@ -61,153 +66,198 @@ async function openCrossingDetail(id) {
 </script>
 
 <template>
-  <section class="directory-board">
-    <section class="feature-strip">
-      <article
-        v-for="item in groupedRows.priority"
-        :key="item.id"
-        class="feature-card"
-        @click="openCrossingDetail(item.id)"
-      >
-        <div class="feature-card__head">
-          <span class="micro-label">Ưu tiên theo bộ lọc</span>
-          <span class="risk-chip compact" :class="item.risk_level">{{ riskLabel(item.risk_level) }}</span>
+  <div class="directory-page space-y-10 pb-20">
+    <!-- Featured Strip -->
+    <section v-if="groupedRows.priority.length" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <article v-for="item in groupedRows.priority" :key="item.id"
+        class="group bg-white p-6 rounded-3xl border border-line shadow-sm hover:shadow-xl hover:shadow-black/5 transition-all cursor-pointer relative overflow-hidden"
+        @click="openCrossingDetail(item.id)">
+        <div class="absolute top-0 left-0 w-1 h-full" :class="'bg-' + item.risk_level"></div>
+        <div class="flex items-center justify-between mb-4">
+          <span class="px-2 py-0.5 bg-brand-soft text-brand text-[10px] font-bold rounded uppercase tracking-wider">Ưu
+            tiên theo bộ lọc</span>
+          <span class="px-2 py-0.5 text-[10px] font-bold rounded uppercase tracking-wider"
+            :class="'badge-risk-' + item.risk_level">
+            {{ riskLabel(item.risk_level) }}
+          </span>
         </div>
-        <h3>{{ item.name }}</h3>
-        <p>{{ item.address || `${item.district}, ${item.city}` }}</p>
-        <div class="feature-card__meta">
-          <span>{{ item.code }}</span>
-          <span>{{ crossingDistance(item) }}</span>
+        <h3 class="text-lg font-bold text-text mb-1 group-hover:text-brand transition-colors">{{ item.name }}</h3>
+        <p class="text-xs text-soft mb-4 flex items-center gap-1">
+          <MapPin :size="12" />
+          {{ item.address || `${item.district}, ${item.city}` }}
+        </p>
+        <div class="flex items-center justify-between pt-4 border-t border-line">
+          <span class="text-[10px] font-bold text-soft font-mono">#{{ item.code }}</span>
+          <span class="text-[10px] font-bold text-brand uppercase tracking-wider flex items-center gap-1">
+            {{ crossingDistance(item) }}
+            <ChevronRight :size="12" />
+          </span>
         </div>
       </article>
     </section>
 
-    <div class="directory-layout">
-      <section class="content-card">
-        <div class="section-head">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-10">
+      <!-- Catalog Section -->
+      <section class="lg:col-span-8 space-y-6">
+        <div class="flex items-center justify-between">
           <div>
-            <p class="micro-label">Danh mục trực quan</p>
-            <h3>{{ filteredRows.length }} điểm phù hợp</h3>
+            <h2 class="text-xl font-bold text-text">Danh mục điểm giao cắt</h2>
+            <p class="text-xs text-soft font-medium uppercase tracking-wider">{{ filteredRows.length }} điểm phù hợp</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button class="p-2 bg-white border border-line rounded-lg text-soft hover:text-brand transition-all">
+              <LayoutGrid :size="18" />
+            </button>
+            <button class="p-2 bg-brand text-white rounded-lg shadow-lg shadow-brand/20 transition-all">
+              <List :size="18" />
+            </button>
           </div>
         </div>
 
-        <div class="catalog-grid">
-          <button
-            v-for="item in groupedRows.regular"
-            :key="item.id"
-            class="catalog-card"
-            :class="{ active: item.id === publicState.selectedCrossingId }"
-            @click="openCrossingDetail(item.id)"
-          >
-            <div class="catalog-card__top">
-              <span class="risk-chip compact" :class="item.risk_level">{{ riskLabel(item.risk_level) }}</span>
-              <small>{{ crossingDistance(item) }}</small>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <button v-for="item in groupedRows.regular" :key="item.id"
+            class="group bg-white p-5 rounded-2xl border border-line shadow-sm hover:border-brand/20 hover:shadow-lg hover:shadow-black/5 transition-all text-left relative overflow-hidden"
+            :class="{ 'ring-2 ring-brand ring-offset-2': item.id === publicState.selectedCrossingId }"
+            @click="openCrossingDetail(item.id)">
+            <div class="flex items-center justify-between mb-3">
+              <span class="px-2 py-0.5 text-[9px] font-bold rounded uppercase tracking-wider"
+                :class="'badge-risk-' + item.risk_level">
+                {{ riskLabel(item.risk_level) }}
+              </span>
+              <span class="text-[10px] font-bold text-soft">{{ crossingDistance(item) }}</span>
             </div>
-            <strong>{{ item.name }}</strong>
-            <span class="catalog-card__code">{{ item.code }}</span>
-            <span class="catalog-card__address">{{ item.address || `${item.district}, ${item.city}` }}</span>
-            <div class="catalog-card__bottom">
-              <small>{{ item.barrier_type || 'Đang cập nhật' }}</small>
-              <small>{{ item.risk_score }} điểm</small>
+            <strong class="block font-bold text-text mb-1 group-hover:text-brand transition-colors truncate">{{
+              item.name }}</strong>
+            <span class="block text-[10px] font-bold text-soft font-mono mb-2">#{{ item.code }}</span>
+            <p class="text-xs text-soft mb-4 line-clamp-1">{{ item.address || `${item.district}, ${item.city}` }}</p>
+            <div class="flex items-center justify-between pt-3 border-t border-line">
+              <span class="text-[10px] font-bold text-soft uppercase tracking-wider">{{ item.barrier_type || 'Đang cập nhật' }}</span>
+              <span class="text-[10px] font-bold text-text">{{ item.risk_score }} điểm</span>
             </div>
           </button>
         </div>
 
-        <div v-if="!filteredRows.length" class="empty-note">
-          Không có điểm nào khớp với bộ lọc hiện tại.
+        <div v-if="!filteredRows.length"
+          class="flex flex-col items-center justify-center py-20 text-center bg-white rounded-3xl border-2 border-dashed border-line">
+          <Search :size="48" class="text-soft/20 mb-4" />
+          <p class="text-soft font-bold">Không tìm thấy điểm nào khớp với bộ lọc hiện tại.</p>
+          <button @click="resetPublicFilters" class="mt-4 text-brand font-bold text-sm hover:underline">Xóa bộ
+            lọc</button>
         </div>
       </section>
 
-      <aside class="story-rail">
-        <section class="content-card sticky-panel">
-          <div class="section-head">
+      <!-- Preview Sidebar -->
+      <aside class="lg:col-span-4 space-y-8">
+        <div class="bg-white rounded-3xl border border-line shadow-sm overflow-hidden sticky top-24">
+          <div class="p-6 border-b border-line flex items-center gap-3 bg-bg-strong/30">
+            <div class="w-10 h-10 rounded-xl bg-white text-brand flex items-center justify-center shadow-sm">
+              <Info :size="20" />
+            </div>
+            <h3 class="font-bold text-text">Chi tiết nhanh</h3>
+          </div>
+
+          <div v-if="publicState.selectedCrossing" class="p-6 space-y-8">
             <div>
-              <p class="micro-label">Chi tiết điểm</p>
-              <h3>{{ publicState.selectedCrossing?.name || 'Chọn một điểm để xem chi tiết' }}</h3>
+              <h4 class="text-xl font-bold text-text mb-1">{{ publicState.selectedCrossing.name }}</h4>
+              <p class="text-xs text-soft flex items-center gap-1">
+                <MapPin :size="12" /> {{ publicState.selectedCrossing.address || publicState.selectedCrossing.district
+                }}
+              </p>
             </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div class="p-3 bg-bg-strong rounded-xl">
+                <span class="text-[10px] font-bold text-soft uppercase block mb-1">Mã điểm</span>
+                <span class="text-xs font-bold font-mono">{{ publicState.selectedCrossing.code }}</span>
+              </div>
+              <div class="p-3 bg-bg-strong rounded-xl">
+                <span class="text-[10px] font-bold text-soft uppercase block mb-1">Rào chắn</span>
+                <span class="text-xs font-bold">{{ publicState.selectedCrossing.barrier_type || 'N/A' }}</span>
+              </div>
+            </div>
+
+            <div class="p-4 bg-brand-soft rounded-2xl">
+              <div class="flex items-center gap-2 mb-2 text-brand">
+                <ShieldAlert :size="18" />
+                <strong class="text-sm">{{ selectedRiskSummary.label }}</strong>
+              </div>
+              <p class="text-xs text-brand-strong leading-relaxed">{{ selectedRiskSummary.message }}</p>
+            </div>
+
+            <div class="space-y-4">
+              <h5 class="text-[10px] font-bold text-soft uppercase tracking-widest flex items-center gap-2">
+                <Train :size="14" /> Lịch tàu gần nhất
+              </h5>
+              <div class="space-y-2">
+                <div v-for="schedule in selectedSchedules" :key="`${schedule.id}-${schedule.pass_time}`"
+                  class="p-3 bg-bg-strong rounded-xl flex items-center justify-between">
+                  <span class="text-xs font-bold text-text">{{ schedule.pass_time }}</span>
+                  <span class="text-[10px] font-bold text-soft uppercase">{{ schedule.train_no }} · {{
+                    schedule.direction }}</span>
+                </div>
+                <div v-if="!selectedSchedules.length" class="text-xs text-soft italic py-2">
+                  Chưa có dữ liệu lịch tàu.
+                </div>
+              </div>
+            </div>
+
+            <div class="space-y-4">
+              <h5 class="text-[10px] font-bold text-soft uppercase tracking-widest flex items-center gap-2">
+                <AlertCircle :size="14" /> Sự cố (90 ngày)
+              </h5>
+              <div class="space-y-2">
+                <div v-for="incident in selectedRecentIncidents" :key="incident.id"
+                  class="p-3 bg-danger-soft/30 border border-danger/10 rounded-xl">
+                  <p class="text-xs font-bold text-danger mb-1">{{ incident.title }}</p>
+                  <p class="text-[10px] text-danger/60">{{ incident.incident_date || 'Không rõ ngày' }}</p>
+                </div>
+                <div v-if="!selectedRecentIncidents.length" class="text-xs text-soft italic py-2">
+                  Chưa ghi nhận sự cố.
+                </div>
+              </div>
+            </div>
+
+            <button
+              class="w-full py-3 bg-brand text-white rounded-2xl font-bold text-sm hover:bg-brand-dark transition-all shadow-lg shadow-brand/20 flex items-center justify-center gap-2"
+              @click="openCrossingDetail(publicState.selectedCrossing.id)">
+              Xem hồ sơ đầy đủ
+              <ChevronRight :size="18" />
+            </button>
           </div>
 
-          <template v-if="publicState.selectedCrossing">
-            <div class="data-grid">
-              <article class="data-card">
-                <span>Mã điểm</span>
-                <strong>{{ publicState.selectedCrossing.code }}</strong>
-              </article>
-              <article class="data-card">
-                <span>Loại giao cắt</span>
-                <strong>{{ publicState.selectedCrossing.crossing_type || 'Đang cập nhật' }}</strong>
-              </article>
-              <article class="data-card">
-                <span>Rào chắn</span>
-                <strong>{{ publicState.selectedCrossing.barrier_type || 'Đang cập nhật' }}</strong>
-              </article>
-              <article class="data-card">
-                <span>Khoảng cách</span>
-                <strong>{{ crossingDistance(publicState.selectedCrossing) }}</strong>
-              </article>
+          <div v-else class="p-12 text-center">
+            <div class="w-16 h-16 rounded-full bg-bg-strong flex items-center justify-center mx-auto mb-4 text-soft">
+              <List :size="32" />
             </div>
-
-            <article class="content-block">
-              <h4>Tóm tắt rủi ro</h4>
-              <div class="stack-list">
-                <div class="stack-item stack-item--highlight">
-                  <strong>{{ selectedRiskSummary.label }}</strong>
-                  <span>{{ selectedRiskSummary.message }}</span>
-                </div>
-              </div>
-            </article>
-
-            <article class="content-block">
-              <h4>Lịch tàu gần nhất</h4>
-              <div class="stack-list">
-                <div
-                  v-for="schedule in selectedSchedules"
-                  :key="`${schedule.id}-${schedule.pass_time}`"
-                  class="stack-item"
-                >
-                  <strong>{{ schedule.pass_time }}</strong>
-                  <span>{{ schedule.train_no }} · {{ schedule.direction }}</span>
-                </div>
-                <div v-if="!selectedSchedules.length" class="empty-note">
-                  Chưa có dữ liệu lịch tàu gần nhất.
-                </div>
-              </div>
-            </article>
-
-            <article class="content-block">
-              <h4>Sự cố trong 90 ngày</h4>
-              <div class="stack-list">
-                <div v-for="incident in selectedRecentIncidents" :key="incident.id" class="stack-item">
-                  <strong>{{ incident.title }}</strong>
-                  <span>{{ incident.incident_date || 'Không rõ ngày' }}</span>
-                </div>
-                <div v-if="!selectedRecentIncidents.length" class="empty-note">
-                  Chưa ghi nhận sự cố phù hợp.
-                </div>
-              </div>
-            </article>
-
-            <article class="content-block">
-              <h4>Ghi chú</h4>
-              <p class="body-copy">{{ publicState.selectedCrossing.notes || 'Chưa có ghi chú bổ sung.' }}</p>
-            </article>
-
-            <div class="toolbar-actions">
-              <button
-                class="primary-button"
-                type="button"
-                @click="openCrossingDetail(publicState.selectedCrossing.id)"
-              >
-                Xem chi tiết điểm
-              </button>
-            </div>
-          </template>
-
-          <div v-else class="empty-note">
-            Chọn một thẻ trong danh mục để xem chi tiết điểm, lịch tàu và dữ liệu sự cố.
+            <p class="text-sm text-soft font-medium">Chọn một điểm trong danh mục để xem chi tiết nhanh.</p>
           </div>
-        </section>
+        </div>
       </aside>
     </div>
-  </section>
+  </div>
 </template>
+
+<style scoped>
+.bg-very_high {
+  background-color: var(--danger);
+}
+
+.bg-high {
+  background-color: var(--warning);
+}
+
+.bg-medium {
+  background-color: #f59e0b;
+}
+
+.bg-low {
+  background-color: var(--success);
+}
+
+.line-clamp-1 {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+</style>
