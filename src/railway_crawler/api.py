@@ -1138,6 +1138,14 @@ def _get_crossing_articles(conn: sqlite3.Connection, crossing: dict) -> list[dic
 
 
 def _enrich_article_record(conn: sqlite3.Connection, article: dict) -> dict:
+    article_url = str(article.get("url") or "").strip()
+    # Skip synchronous asset resolution for synthetic/local URLs so
+    # the public detail page does not block on unreachable hosts.
+    if not article_url.startswith("http://") and not article_url.startswith("https://"):
+        return article
+    if any(token in article_url for token in ["seed.local", "127.0.0.1", "localhost"]):
+        return article
+
     needs_external = not str(article.get("external_url") or "").strip() or str(article.get("external_url") or "").startswith("https://news.google.com/")
     current_image = str(article.get("image_url") or "").strip()
     needs_image = (
@@ -1149,7 +1157,7 @@ def _enrich_article_record(conn: sqlite3.Connection, article: dict) -> dict:
         return article
 
     try:
-        assets = resolve_article_assets(str(article.get("url") or ""), timeout=12)
+        assets = resolve_article_assets(article_url, timeout=4)
     except Exception:
         return article
 
@@ -1161,7 +1169,7 @@ def _enrich_article_record(conn: sqlite3.Connection, article: dict) -> dict:
         SET external_url = ?, image_url = ?
         WHERE url = ?
         """,
-        (external_url, image_url, article.get("url")),
+        (external_url, image_url, article_url),
     )
     conn.commit()
     article["external_url"] = external_url

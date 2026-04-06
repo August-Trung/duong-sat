@@ -87,8 +87,12 @@ body,
 
 body {
 	font-family:
+		"Noto Sans",
+		"Be Vietnam Pro",
 		"Inter",
+		"Segoe UI Variable Text",
 		"Segoe UI",
+		"Arial Unicode MS",
 		system-ui,
 		-apple-system,
 		sans-serif;

@@ -342,6 +342,15 @@ export function qualityAlertsForPublic(crossing, schedules = []) {
   if (normalizeText(crossing.verification_status) !== 'verified') {
     alerts.push('Hồ sơ chưa ở trạng thái xác minh hoàn tất.')
   }
+  if (
+    normalizeText(crossing.coordinate_source).includes('osm/gpkg') &&
+    normalizeText(crossing.verification_status) !== 'verified'
+  ) {
+    alerts.push('Vị trí này có yếu tố suy diễn từ OSM/GPKG, nên đối chiếu hiện trường trước khi dùng cho điều phối.')
+  }
+  if (crossing.surveyed_at && !crossing.verified_at) {
+    alerts.push('Đã có ngày khảo sát nhưng chưa có mốc xác minh cuối cùng.')
+  }
   if (!crossing.manager_name) {
     alerts.push('Chưa có thông tin đơn vị hoặc người phụ trách hiện trường.')
   }
