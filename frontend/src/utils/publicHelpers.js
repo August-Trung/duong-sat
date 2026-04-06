@@ -125,7 +125,7 @@ function parseScheduleMoment(schedule, now = new Date()) {
   candidate.setHours(hours, minutes, 0, 0)
   candidate.setDate(candidate.getDate() + Number(schedule?.day_offset || 0))
 
-  if (candidate.getTime() < now.getTime() - 5 * 60 * 1000) {
+  if (candidate.getTime() < now.getTime()) {
     candidate.setDate(candidate.getDate() + 1)
   }
 

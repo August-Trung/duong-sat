@@ -2,18 +2,19 @@
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
-  Map as MapIcon,
   ShieldAlert,
   Navigation,
   MapPin,
+  ChevronLeft,
   ChevronRight,
   AlertCircle,
+  Search,
   Layers,
   Maximize2,
   MousePointer2,
   X,
-  Activity,
 } from 'lucide-vue-next'
+import { toAssetUrl } from '../api'
 import MapPanel from '../components/MapPanel.vue'
 import {
   clearPublicError,
@@ -27,14 +28,13 @@ import {
 } from '../stores/publicData'
 import {
   applyCrossingFilters,
-  crossingsInsideArea,
+  buildSearchSuggestions,
   describeUserLocation,
   formatDistance,
   haversineDistanceMeters,
   incidentsForCrossing,
-  nearestCrossings,
   riskSummaryForCrossing,
-  schedulesForCrossing,
+  upcomingSchedulesForCrossing,
 } from '../utils/publicHelpers'
 
 const router = useRouter()
@@ -53,8 +53,11 @@ const overlays = reactive({
 })
 const uiState = reactive({
   pickingLocation: false,
+  showMapSearchResults: false,
 })
 const toastMessage = ref('')
+const selectedPreviewIndex = ref(0)
+const mapSearchQuery = ref('')
 
 let toastTimer = null
 
@@ -69,37 +72,22 @@ const filteredCrossings = computed(() =>
   })
 )
 
-const nearest = computed(() => nearestCrossings(filteredCrossings.value, publicState.userLocation, 5))
-const areaMatches = computed(() => crossingsInsideArea(filteredCrossings.value, publicState.areaAlert))
-const areaIncidents = computed(() =>
-  publicState.incidents.filter((incident) =>
-    areaMatches.value.some((crossing) => {
-      const incidentCrossingId = incident.crossing_id ?? incident.crossingId
-      return incidentCrossingId
-        ? incidentCrossingId === crossing.id
-        : incident.crossing_name === crossing.name
-    })
-  )
-)
-const selectedUpcomingSchedules = computed(() =>
-  schedulesForCrossing(publicState.selectedCrossing, publicState.schedules, 4)
-)
 const selectedRecentIncidents = computed(() =>
   incidentsForCrossing(publicState.selectedCrossing, publicState.incidents, 60).slice(0, 5)
 )
-const selectedNearby = computed(() => {
-  if (!publicState.selectedCrossing) return []
-  return nearestCrossings(publicState.crossings, publicState.selectedCrossing, 4).filter(
-    (item) => item.id !== publicState.selectedCrossingId
-  )
-})
 const selectedRiskSummary = computed(() =>
   riskSummaryForCrossing(publicState.selectedCrossing, publicState.incidents, publicState.schedules)
 )
-const highlightedIds = computed(() => [
-  ...nearest.value.map((item) => item.id),
-  ...areaMatches.value.map((item) => item.id),
-])
+const selectedUpcomingTrain = computed(() =>
+  upcomingSchedulesForCrossing(publicState.selectedCrossing, publicState.schedules, 1)[0] ?? null
+)
+const selectedArticlesCount = computed(() => publicState.selectedCrossing?.articles?.length ?? 0)
+const selectedImages = computed(() => publicState.selectedCrossing?.images ?? [])
+const selectedPreviewImage = computed(() => selectedImages.value[selectedPreviewIndex.value] ?? null)
+const highlightedIds = computed(() => [])
+const mapSearchSuggestions = computed(() =>
+  buildSearchSuggestions(publicState.crossings, mapSearchQuery.value, 6)
+)
 
 function showToast(message) {
   toastMessage.value = message
@@ -126,8 +114,98 @@ function riskLabel(level) {
   }[level] || level
 }
 
+function barrierLabel(value) {
+  return {
+    co_gac: 'Có người gác',
+    tu_dong: 'Tự động',
+    can_gat: 'Cần gạt',
+    khong_co: 'Không có rào chắn',
+  }[value] || value || 'N/A'
+}
+
+function formatShortAddress(crossing) {
+  if (!crossing) return 'Biên Hòa, Đồng Nai'
+  return (
+    crossing.address ||
+    [crossing.ward, crossing.district, crossing.city].filter(Boolean).join(', ') ||
+    'Biên Hòa, Đồng Nai'
+  )
+}
+
+function formatTrainTime(dateValue) {
+  return new Intl.DateTimeFormat('vi-VN', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(dateValue)
+}
+
+function nextTrainPrimary() {
+  if (!selectedUpcomingTrain.value?.nextPassAt) {
+    return 'Chưa có dữ liệu'
+  }
+
+  const trainNo = selectedUpcomingTrain.value.train_no || 'Tàu'
+  return `${trainNo} · ${formatTrainTime(selectedUpcomingTrain.value.nextPassAt)}`
+}
+
+function nextTrainSecondary() {
+  if (!selectedUpcomingTrain.value?.nextPassAt) {
+    return ''
+  }
+
+  const diffMinutes = Math.round((selectedUpcomingTrain.value.nextPassAt.getTime() - Date.now()) / 60000)
+  if (diffMinutes <= 0) return '(Đang đi qua)'
+  if (diffMinutes < 60) return `(${diffMinutes} phút nữa)`
+
+  const hours = Math.floor(diffMinutes / 60)
+  const minutes = diffMinutes % 60
+  if (minutes === 0) return `(${hours} giờ nữa)`
+  return `(${hours} giờ ${minutes} phút nữa)`
+}
+
 function distanceToCrossing(crossing) {
   return formatDistance(haversineDistanceMeters(distanceSource.value, crossing))
+}
+
+function selectPreviewImage(index) {
+  selectedPreviewIndex.value = index
+}
+
+function showPreviousImage() {
+  if (!selectedImages.value.length) return
+  selectedPreviewIndex.value =
+    (selectedPreviewIndex.value - 1 + selectedImages.value.length) % selectedImages.value.length
+}
+
+function showNextImage() {
+  if (!selectedImages.value.length) return
+  selectedPreviewIndex.value = (selectedPreviewIndex.value + 1) % selectedImages.value.length
+}
+
+function openMapSearchResults() {
+  uiState.showMapSearchResults = true
+}
+
+function closeMapSearchResults() {
+  window.setTimeout(() => {
+    uiState.showMapSearchResults = false
+  }, 120)
+}
+
+function selectMapSearchResult(crossing) {
+  if (!crossing) return
+  mapSearchQuery.value = crossing.code ? `${crossing.name} (${crossing.code})` : crossing.name || ''
+  uiState.showMapSearchResults = false
+  loadCrossingDetail(crossing.id)
+}
+
+function submitMapSearch() {
+  selectMapSearchResult(mapSearchSuggestions.value[0] ?? null)
+}
+
+function clearMapSearch() {
+  mapSearchQuery.value = ''
+  uiState.showMapSearchResults = false
 }
 
 async function locateAndUseArea() {
@@ -152,8 +230,7 @@ function applyPickedLocation(location) {
   uiState.pickingLocation = false
 }
 
-async function openCrossingDetail(id) {
-  await loadCrossingDetail(id)
+function openCrossingDetail(id) {
   router.push({ name: 'public-crossing-detail', params: { id } })
 }
 
@@ -161,6 +238,13 @@ watch(
   () => publicState.error,
   (value) => {
     if (value) showToast(value)
+  }
+)
+
+watch(
+  () => publicState.selectedCrossingId,
+  () => {
+    selectedPreviewIndex.value = 0
   }
 )
 
@@ -174,7 +258,8 @@ onBeforeUnmount(() => {
     <transition name="toast">
       <div v-if="toastMessage" class="fixed top-28 left-1/2 -translate-x-1/2 z-[2000] w-full max-w-md px-4">
         <div
-          class="bg-danger-soft border border-danger/20 p-4 rounded-2xl shadow-2xl flex items-center gap-4 backdrop-blur-xl">
+          class="bg-danger-soft border border-danger/20 p-4 rounded-2xl shadow-2xl flex items-center gap-4 backdrop-blur-xl"
+        >
           <div class="w-10 h-10 rounded-xl bg-danger text-white flex items-center justify-center flex-shrink-0">
             <AlertCircle :size="20" />
           </div>
@@ -300,12 +385,63 @@ onBeforeUnmount(() => {
           @select="loadCrossingDetail"
           @change-mode="mapMode.value = $event"
           @pick-location="applyPickedLocation"
-        />
+        >
+          <template #top-left>
+            <div class="relative w-full">
+              <form
+                class="flex items-center gap-3 px-4 py-3 bg-white/95 backdrop-blur-xl border border-line rounded-2xl shadow-lg"
+                @submit.prevent="submitMapSearch"
+              >
+                <Search :size="18" class="text-soft flex-shrink-0" />
+                <input
+                  v-model="mapSearchQuery"
+                  type="text"
+                  placeholder="Tìm theo tên hoặc mã điểm giao"
+                  class="flex-1 bg-transparent outline-none text-sm font-medium text-text placeholder:text-soft/80"
+                  @focus="openMapSearchResults"
+                  @blur="closeMapSearchResults"
+                />
+                <button
+                  v-if="mapSearchQuery"
+                  type="button"
+                  class="text-soft hover:text-text transition-colors"
+                  @click="clearMapSearch"
+                >
+                  <X :size="16" />
+                </button>
+              </form>
+
+              <div
+                v-if="uiState.showMapSearchResults && mapSearchQuery.trim()"
+                class="mt-2 bg-white/95 backdrop-blur-xl border border-line rounded-2xl shadow-2xl overflow-hidden"
+              >
+                <button
+                  v-for="crossing in mapSearchSuggestions"
+                  :key="crossing.id"
+                  type="button"
+                  class="w-full px-4 py-3 text-left hover:bg-bg-strong/70 transition-colors border-b border-line last:border-b-0"
+                  @mousedown.prevent="selectMapSearchResult(crossing)"
+                >
+                  <strong class="block text-sm font-bold text-text">{{ crossing.name }}</strong>
+                  <span class="text-[10px] font-bold text-soft uppercase tracking-wider">
+                    {{ crossing.code || 'Không có mã' }}
+                  </span>
+                </button>
+
+                <div
+                  v-if="!mapSearchSuggestions.length"
+                  class="px-4 py-4 text-xs font-medium text-soft"
+                >
+                  Không tìm thấy điểm phù hợp
+                </div>
+              </div>
+            </div>
+          </template>
+        </MapPanel>
 
         <div
           v-if="publicState.userLocation || uiState.pickingLocation"
-          class="absolute bottom-6 z-[1000] max-w-[calc(100%-3rem)]"
-          :class="publicState.selectedCrossing ? 'right-6 left-auto' : 'left-6 right-auto'"
+          class="absolute bottom-6 left-6 z-[1000] max-w-[calc(100%-3rem)]"
         >
           <div
             class="px-4 py-2 bg-white/90 backdrop-blur-xl border border-line rounded-2xl shadow-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-3"
@@ -324,50 +460,123 @@ onBeforeUnmount(() => {
       <section class="space-y-4">
         <div class="flex items-center justify-between px-1">
           <h3 class="text-[10px] font-bold text-soft uppercase tracking-widest">Điểm đang chọn</h3>
-          <div
-            v-if="publicState.selectedCrossing"
-            class="px-2 py-0.5 text-[9px] font-black rounded uppercase tracking-wider"
-            :class="'badge-risk-' + publicState.selectedCrossing.risk_level"
-          >
-            {{ riskLabel(publicState.selectedCrossing.risk_level) }}
-          </div>
         </div>
 
         <div
           v-if="publicState.selectedCrossing"
-          class="bg-white p-6 rounded-[32px] border border-line shadow-sm relative overflow-hidden group transition-all hover:shadow-xl hover:shadow-black/5"
+          class="bg-white p-5 rounded-[16px] border border-line shadow-sm relative overflow-hidden group transition-all hover:shadow-xl hover:shadow-black/5"
         >
           <div class="absolute top-0 left-0 w-1.5 h-full" :class="'bg-' + publicState.selectedCrossing.risk_level"></div>
-          <h4 class="text-xl font-black text-text mb-1 group-hover:text-brand transition-colors">
-            {{ publicState.selectedCrossing.name }}
-          </h4>
-          <p class="text-xs text-soft mb-6 flex items-center gap-1">
-            <MapPin :size="12" />
-            {{ publicState.selectedCrossing.address || 'Biên Hòa, Đồng Nai' }}
-          </p>
 
-          <div class="grid grid-cols-2 gap-3 mb-6">
-            <div class="p-3 bg-bg-strong/50 rounded-2xl border border-line">
-              <span class="text-[9px] font-bold text-soft uppercase tracking-widest block mb-1">Khoảng cách</span>
-              <span class="text-xs font-black text-text">{{ distanceToCrossing(publicState.selectedCrossing) }}</span>
+          <div class="flex items-start justify-between gap-3 mb-4">
+            <div class="min-w-0">
+              <h4 class="text-[1.35rem] leading-tight font-black text-text mb-1 group-hover:text-brand transition-colors line-clamp-2">
+                {{ publicState.selectedCrossing.name }}
+              </h4>
+              <p class="text-[11px] text-soft flex items-start gap-1 line-clamp-2">
+                <MapPin :size="12" />
+                {{ formatShortAddress(publicState.selectedCrossing) }}
+              </p>
             </div>
-            <div class="p-3 bg-bg-strong/50 rounded-2xl border border-line">
-              <span class="text-[9px] font-bold text-soft uppercase tracking-widest block mb-1">Rào chắn</span>
-              <span class="text-xs font-black text-text">{{ publicState.selectedCrossing.barrier_type || 'N/A' }}</span>
+            <div
+              class="px-2.5 py-1 text-[9px] font-black rounded-xl uppercase tracking-wider whitespace-nowrap shrink-0"
+              :class="'badge-risk-' + publicState.selectedCrossing.risk_level"
+            >
+              {{ riskLabel(publicState.selectedCrossing.risk_level) }}
             </div>
           </div>
 
-          <div class="p-4 bg-brand-soft rounded-2xl border border-brand/10 mb-8">
-            <div class="flex items-center gap-2 mb-2 text-brand">
-              <ShieldAlert :size="18" />
+          <div class="grid grid-cols-3 gap-2.5 mb-4">
+            <div class="p-2.5 bg-bg-strong/50 rounded-[10px] border border-line min-h-[82px]">
+              <span class="text-[8px] font-bold text-soft uppercase tracking-widest block mb-1">Khoảng cách</span>
+              <span class="text-xs font-black text-text">{{ distanceToCrossing(publicState.selectedCrossing) }}</span>
+            </div>
+            <div class="p-2.5 bg-bg-strong/50 rounded-[10px] border border-line min-h-[82px]">
+              <span class="text-[8px] font-bold text-soft uppercase tracking-widest block mb-1">Rào chắn</span>
+              <span class="text-xs font-black text-text">{{ barrierLabel(publicState.selectedCrossing.barrier_type) }}</span>
+            </div>
+            <div class="p-2.5 bg-bg-strong/50 rounded-[10px] border border-line min-h-[82px]">
+              <span class="text-[8px] font-bold text-soft uppercase tracking-widest block mb-1">Tàu sắp tới</span>
+              <span class="text-xs font-black text-text block">{{ nextTrainPrimary() }}</span>
+              <span v-if="nextTrainSecondary()" class="text-[10px] font-semibold text-soft">
+                {{ nextTrainSecondary() }}
+              </span>
+            </div>
+          </div>
+
+          <div class="p-3 bg-brand-soft rounded-[10px] border border-brand/10 mb-4">
+            <div class="flex items-center gap-2 mb-1.5 text-brand">
+              <ShieldAlert :size="16" />
               <strong class="text-xs uppercase tracking-wider">{{ selectedRiskSummary.label }}</strong>
             </div>
-            <p class="text-[11px] text-brand-strong leading-relaxed font-medium">{{ selectedRiskSummary.message }}</p>
+            <p class="text-[10px] text-brand-strong leading-relaxed font-medium line-clamp-2">
+              {{ selectedRiskSummary.reasons[0] || selectedRiskSummary.message }}
+            </p>
+          </div>
+
+          <div class="flex items-center gap-2.5 mb-4">
+            <div class="flex-1 px-3 py-2.5 bg-bg-strong/50 rounded-[10px] border border-line">
+              <span class="text-[8px] font-bold text-soft uppercase tracking-wider block mb-1">Sự cố</span>
+              <div class="flex items-baseline gap-2">
+                <span class="text-lg font-black text-text">{{ selectedRecentIncidents.length }}</span>
+                <span class="text-[10px] font-semibold text-soft">trong 60 ngày</span>
+              </div>
+            </div>
+            <div class="flex-1 px-3 py-2.5 bg-bg-strong/50 rounded-[10px] border border-line">
+              <span class="text-[8px] font-bold text-soft uppercase tracking-wider block mb-1">Bài tin</span>
+              <div class="flex items-baseline gap-2">
+                <span class="text-lg font-black text-text">{{ selectedArticlesCount }}</span>
+                <span class="text-[10px] font-semibold text-soft">bài liên quan</span>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="selectedPreviewImage" class="mb-4">
+            <div class="relative w-full rounded-[12px] overflow-hidden border border-line bg-bg-strong">
+              <img
+                :src="toAssetUrl(selectedPreviewImage.url)"
+                :alt="selectedPreviewImage.caption || publicState.selectedCrossing.name"
+                class="w-full h-36 object-cover"
+                referrerpolicy="no-referrer"
+              />
+
+              <template v-if="selectedImages.length > 1">
+                <button
+                  type="button"
+                  @click="showPreviousImage"
+                  class="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/90 backdrop-blur text-text shadow-lg flex items-center justify-center hover:bg-white transition-colors"
+                >
+                  <ChevronLeft :size="18" />
+                </button>
+                <button
+                  type="button"
+                  @click="showNextImage"
+                  class="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-white/90 backdrop-blur text-text shadow-lg flex items-center justify-center hover:bg-white transition-colors"
+                >
+                  <ChevronRight :size="18" />
+                </button>
+                <div class="absolute bottom-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-black/45 text-white rounded-full text-[10px] font-black tracking-wide">
+                  {{ selectedPreviewIndex + 1 }}/{{ selectedImages.length }}
+                </div>
+              </template>
+            </div>
+
+            <div v-if="selectedImages.length > 1" class="flex items-center justify-center gap-2 mt-3">
+              <button
+                v-for="(image, index) in selectedImages"
+                :key="image.id || image.url"
+                type="button"
+                @click="selectPreviewImage(index)"
+                class="h-2.5 rounded-full transition-all"
+                :class="selectedPreviewIndex === index ? 'w-6 bg-brand' : 'w-2.5 bg-line hover:bg-soft/40'"
+                :aria-label="`Xem ảnh ${index + 1}`"
+              />
+            </div>
           </div>
 
           <button
             @click="openCrossingDetail(publicState.selectedCrossing.id)"
-            class="w-full py-4 bg-brand text-white rounded-2xl font-bold text-sm shadow-lg shadow-brand/20 hover:bg-brand-dark transition-all flex items-center justify-center gap-2"
+            class="w-full py-3.5 bg-brand text-white rounded-[10px] font-bold text-sm shadow-lg shadow-brand/20 hover:bg-brand-dark transition-all flex items-center justify-center gap-2"
           >
             Xem chi tiết đầy đủ
             <ChevronRight :size="18" />
@@ -384,98 +593,6 @@ onBeforeUnmount(() => {
         </div>
       </section>
 
-      <section class="space-y-4">
-        <h3 class="text-[10px] font-bold text-soft uppercase tracking-widest px-1">Điểm lân cận</h3>
-        <div class="space-y-3">
-          <button
-            v-for="item in nearest"
-            :key="item.id"
-            @click="loadCrossingDetail(item.id)"
-            class="w-full bg-white p-4 rounded-2xl border border-line shadow-sm flex items-center justify-between hover:border-brand/20 hover:shadow-lg hover:shadow-black/5 transition-all text-left group"
-          >
-            <div class="flex items-center gap-4">
-              <div
-                class="w-10 h-10 rounded-xl bg-bg-strong text-soft group-hover:text-brand transition-colors flex items-center justify-center"
-              >
-                <MapPin :size="20" />
-              </div>
-              <div>
-                <strong class="block text-sm font-bold text-text group-hover:text-brand transition-colors">
-                  {{ item.name }}
-                </strong>
-                <span class="text-[10px] font-bold text-soft uppercase tracking-wider">
-                  {{ formatDistance(item.distanceMeters) }}
-                </span>
-              </div>
-            </div>
-            <div class="w-2 h-2 rounded-full" :class="'bg-' + item.risk_level"></div>
-          </button>
-          <div
-            v-if="!nearest.length"
-            class="text-xs text-soft p-8 text-center italic bg-bg-strong/30 rounded-2xl border border-dashed border-line"
-          >
-            Bật vị trí để xem các điểm gần bạn
-          </div>
-        </div>
-      </section>
-
-      <section class="space-y-4">
-        <div class="flex items-center justify-between px-1">
-          <h3 class="text-[10px] font-bold text-soft uppercase tracking-widest">Giám sát vùng</h3>
-          <span
-            v-if="areaMatches.length"
-            class="px-2 py-0.5 bg-brand-soft text-brand text-[9px] font-black rounded uppercase tracking-wider"
-          >
-            {{ areaMatches.length }} điểm
-          </span>
-        </div>
-
-        <div class="bg-surface-dark rounded-[32px] p-6 text-white shadow-xl shadow-black/10 relative overflow-hidden">
-          <div class="absolute top-0 right-0 w-32 h-32 bg-brand/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
-          <div class="relative z-10">
-            <div class="flex items-center gap-4 mb-6">
-              <div class="w-10 h-10 rounded-xl bg-brand flex items-center justify-center shadow-lg shadow-brand/20">
-                <Activity :size="20" />
-              </div>
-              <div>
-                <strong class="block text-sm font-bold">Vùng quan tâm</strong>
-                <span class="text-[10px] text-white/40 uppercase font-black tracking-widest">
-                  {{ publicState.areaAlert.label || 'Chưa xác định' }}
-                </span>
-              </div>
-            </div>
-
-            <div v-if="areaIncidents.length" class="p-3 bg-danger/10 border border-danger/20 rounded-xl mb-6">
-              <p class="text-[11px] font-bold text-danger flex items-center gap-2">
-                <AlertCircle :size="14" />
-                {{ areaIncidents.length }} sự cố trong vùng
-              </p>
-            </div>
-
-            <div class="space-y-2 max-h-[240px] overflow-y-auto pr-2 custom-scrollbar">
-              <button
-                v-for="item in areaMatches.slice(0, 10)"
-                :key="item.id"
-                @click="loadCrossingDetail(item.id)"
-                class="w-full flex items-center justify-between p-3 rounded-xl hover:bg-white/5 text-left transition-colors group"
-              >
-                <span class="text-xs font-medium text-white/80 group-hover:text-white truncate pr-4">
-                  {{ item.name }}
-                </span>
-                <span
-                  class="text-[9px] font-black px-2 py-1 rounded bg-white/10 text-white/60 group-hover:text-white transition-colors"
-                >
-                  {{ item.risk_score }} PTS
-                </span>
-              </button>
-            </div>
-
-            <div v-if="!areaMatches.length" class="text-xs text-white/30 text-center py-10 italic">
-              Chưa có điểm nào trong vùng theo dõi
-            </div>
-          </div>
-        </div>
-      </section>
     </aside>
   </div>
 </template>

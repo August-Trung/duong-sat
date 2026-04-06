@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   MapPin, ShieldAlert, ChevronRight,
@@ -17,6 +17,7 @@ import {
 } from '../utils/publicHelpers'
 
 const router = useRouter()
+const viewMode = ref('list')
 
 const filteredRows = computed(() =>
   applyCrossingFilters(publicState.crossings, publicFilters, {
@@ -59,8 +60,7 @@ function crossingDistance(crossing) {
   )
 }
 
-async function openCrossingDetail(id) {
-  await loadCrossingDetail(id)
+function openCrossingDetail(id) {
   router.push({ name: 'public-crossing-detail', params: { id } })
 }
 </script>
@@ -105,32 +105,47 @@ async function openCrossingDetail(id) {
             <p class="text-xs text-soft font-medium uppercase tracking-wider">{{ filteredRows.length }} điểm phù hợp</p>
           </div>
           <div class="flex items-center gap-2">
-            <button class="p-2 bg-white border border-line rounded-lg text-soft hover:text-brand transition-all">
+            <button
+              class="p-2 border border-line rounded-lg transition-all"
+              :class="viewMode === 'grid' ? 'bg-brand text-white shadow-lg shadow-brand/20' : 'bg-white text-soft hover:text-brand'"
+              @click="viewMode = 'grid'"
+            >
               <LayoutGrid :size="18" />
             </button>
-            <button class="p-2 bg-brand text-white rounded-lg shadow-lg shadow-brand/20 transition-all">
+            <button
+              class="p-2 rounded-lg transition-all"
+              :class="viewMode === 'list' ? 'bg-brand text-white shadow-lg shadow-brand/20' : 'bg-white border border-line text-soft hover:text-brand'"
+              @click="viewMode = 'list'"
+            >
               <List :size="18" />
             </button>
           </div>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div
+          class="gap-4"
+          :class="viewMode === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2' : 'flex flex-col'"
+        >
           <button v-for="item in groupedRows.regular" :key="item.id"
             class="group bg-white p-5 rounded-2xl border border-line shadow-sm hover:border-brand/20 hover:shadow-lg hover:shadow-black/5 transition-all text-left relative overflow-hidden"
-            :class="{ 'ring-2 ring-brand ring-offset-2': item.id === publicState.selectedCrossingId }"
+            :class="[
+              viewMode === 'list' ? 'flex items-center justify-between gap-4' : '',
+              { 'ring-2 ring-brand ring-offset-2': item.id === publicState.selectedCrossingId },
+            ]"
             @click="openCrossingDetail(item.id)">
-            <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center justify-between mb-3" :class="viewMode === 'list' ? 'mb-0 flex-1 order-2' : ''">
               <span class="px-2 py-0.5 text-[9px] font-bold rounded uppercase tracking-wider"
                 :class="'badge-risk-' + item.risk_level">
                 {{ riskLabel(item.risk_level) }}
               </span>
               <span class="text-[10px] font-bold text-soft">{{ crossingDistance(item) }}</span>
             </div>
-            <strong class="block font-bold text-text mb-1 group-hover:text-brand transition-colors truncate">{{
+            <strong class="block font-bold text-text mb-1 group-hover:text-brand transition-colors truncate"
+              :class="viewMode === 'list' ? 'mb-0 order-1 w-56 shrink-0' : ''">{{
               item.name }}</strong>
-            <span class="block text-[10px] font-bold text-soft font-mono mb-2">#{{ item.code }}</span>
-            <p class="text-xs text-soft mb-4 line-clamp-1">{{ item.address || `${item.district}, ${item.city}` }}</p>
-            <div class="flex items-center justify-between pt-3 border-t border-line">
+            <span class="block text-[10px] font-bold text-soft font-mono mb-2" :class="viewMode === 'list' ? 'mb-0 order-3' : ''">#{{ item.code }}</span>
+            <p class="text-xs text-soft mb-4 line-clamp-1" :class="viewMode === 'list' ? 'mb-0 order-4 flex-1' : ''">{{ item.address || `${item.district}, ${item.city}` }}</p>
+            <div class="flex items-center justify-between pt-3 border-t border-line" :class="viewMode === 'list' ? 'pt-0 border-t-0 order-5 w-32 shrink-0' : ''">
               <span class="text-[10px] font-bold text-soft uppercase tracking-wider">{{ item.barrier_type || 'Đang cập nhật' }}</span>
               <span class="text-[10px] font-bold text-text">{{ item.risk_score }} điểm</span>
             </div>

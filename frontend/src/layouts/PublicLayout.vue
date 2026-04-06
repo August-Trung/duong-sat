@@ -299,24 +299,6 @@ function clearFilters() {
         </div>
       </section>
 
-      <section v-else-if="isDetailRoute" class="flex items-center justify-between mb-10">
-        <div class="flex items-center gap-6">
-          <button @click="$router.back()"
-            class="w-12 h-12 rounded-2xl bg-white border border-line text-soft flex items-center justify-center hover:bg-bg-strong transition-all shadow-sm">
-            <ChevronLeft :size="24" />
-          </button>
-          <div>
-            <h2 class="text-2xl font-black text-text tracking-tight">Chi tiết điểm giao cắt</h2>
-            <p class="text-xs text-soft font-bold uppercase tracking-widest mt-1">Thông tin kỹ thuật & rủi ro</p>
-          </div>
-        </div>
-        <div
-          class="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-success-soft text-success rounded-full text-[10px] font-black tracking-wider border border-success/10">
-          <span class="w-2 h-2 bg-success rounded-full animate-pulse"></span>
-          DỮ LIỆU THỜI GIAN THỰC
-        </div>
-      </section>
-
       <RouterView v-slot="{ Component }">
         <transition name="page-fade" mode="out-in">
           <component :is="Component" />
@@ -335,17 +317,6 @@ function clearFilters() {
           <p class="text-xs text-soft font-medium">
             &copy; 2026 Hệ thống Giám sát An toàn Đường sắt. Phát triển bởi AIS.
           </p>
-          <div class="flex gap-8">
-            <a href="#"
-              class="text-[10px] font-bold text-soft uppercase tracking-widest hover:text-brand transition-colors">Điều
-              khoản</a>
-            <a href="#"
-              class="text-[10px] font-bold text-soft uppercase tracking-widest hover:text-brand transition-colors">Bảo
-              mật</a>
-            <a href="#"
-              class="text-[10px] font-bold text-soft uppercase tracking-widest hover:text-brand transition-colors">Liên
-              hệ</a>
-          </div>
         </div>
       </div>
     </footer>

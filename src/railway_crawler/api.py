@@ -1074,7 +1074,7 @@ def _crossing_detail(conn: sqlite3.Connection, crossing_id: int) -> dict | None:
     crossing = dict(row)
     crossing["evidence"] = json.loads(crossing.pop("evidence_json"))
     crossing["schedules"] = _get_crossing_schedules(conn, crossing)
-    crossing["articles"] = _get_crossing_articles(conn, crossing)
+    crossing["articles"] = _get_crossing_articles(conn, crossing, enrich_assets=False)
     crossing["incidents"] = _get_crossing_incidents(conn, crossing_id)
     crossing["images"] = _get_crossing_images(conn, crossing_id)
     return crossing
@@ -1097,7 +1097,12 @@ def _get_crossing_schedules(conn: sqlite3.Connection, crossing: dict) -> list[di
     return [_serialize_schedule_with_eta(dict(row)) for row in rows]
 
 
-def _get_crossing_articles(conn: sqlite3.Connection, crossing: dict) -> list[dict]:
+def _get_crossing_articles(
+    conn: sqlite3.Connection,
+    crossing: dict,
+    *,
+    enrich_assets: bool = True,
+) -> list[dict]:
     params: list[object] = [crossing["id"]]
     clauses = []
     alias_tokens = []
@@ -1134,6 +1139,8 @@ def _get_crossing_articles(conn: sqlite3.Connection, crossing: dict) -> list[dic
         params,
     ).fetchall()
     articles = [dict(row) for row in rows]
+    if not enrich_assets:
+        return articles
     return [_enrich_article_record(conn, article) for article in articles]
 
 

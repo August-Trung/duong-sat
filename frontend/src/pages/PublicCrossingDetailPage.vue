@@ -176,6 +176,29 @@ async function useLiveLocation() {
   }
 }
 
+async function shareCrossing() {
+  const title = crossing.value?.name || 'Điểm giao cắt'
+  const url = typeof window !== 'undefined' ? window.location.href : ''
+  if (!url) return
+
+  if (navigator.share) {
+    try {
+      await navigator.share({ title, url })
+      return
+    } catch {
+      // Fall through to clipboard if share is cancelled or unavailable.
+    }
+  }
+
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(url)
+    } catch {
+      // No-op fallback.
+    }
+  }
+}
+
 function syncFieldModeFromViewport() {
   if (typeof window === 'undefined') return
   if (window.innerWidth <= 720) {
@@ -237,7 +260,7 @@ watch(crossingId, async (id) => {
               <Navigation :size="18" :class="{ 'animate-pulse': publicState.locating }" />
               {{ publicState.locating ? 'Đang định vị...' : 'Cập nhật vị trí' }}
             </button>
-            <button
+            <button @click="shareCrossing"
               class="w-12 h-12 flex items-center justify-center bg-bg-strong text-soft hover:text-brand rounded-2xl transition-all border border-line">
               <Share2 :size="20" />
             </button>

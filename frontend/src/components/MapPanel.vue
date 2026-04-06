@@ -120,6 +120,16 @@ const baseLayers = {
     ),
 }
 
+const modeOptions = [
+  { value: 'standard', label: 'Chuẩn' },
+  { value: 'osm', label: 'OSM' },
+  { value: 'light', label: 'Sáng' },
+  { value: 'dark', label: 'Tối' },
+  { value: 'satellite', label: 'Vệ tinh' },
+  { value: 'three-d', label: '3D' },
+  { value: 'topo', label: 'Địa hình' },
+]
+
 onMounted(() => {
   map = L.map(mapRoot.value, {
     zoomControl: false,
@@ -195,6 +205,19 @@ watch(
     if (!map || !location?.latitude || !location?.longitude) return
     hasFitBounds = true
     map.flyTo([location.latitude, location.longitude], Math.max(map.getZoom(), 15), {
+      animate: true,
+      duration: 0.8,
+    })
+  },
+  { deep: true }
+)
+
+watch(
+  () => props.selectedCrossing,
+  (crossing) => {
+    if (!map || props.mapMode === 'three-d' || !crossing?.latitude || !crossing?.longitude) return
+    hasFitBounds = true
+    map.flyTo([crossing.latitude, crossing.longitude], Math.max(map.getZoom(), 15), {
       animate: true,
       duration: 0.8,
     })
@@ -1083,73 +1106,27 @@ async function initialize3DMap() {
 
 <template>
   <div ref="mapShell" class="map-shell" :class="{ fullscreen: isFullscreen }">
-    <button class="map-fab" type="button" @click="toggleFullscreen">
-      {{ isFullscreen ? 'Thu nhỏ' : 'Toàn màn hình' }}
-    </button>
-
-    <div class="map-fab-group">
-      <div class="map-mode-selector">
-        <button class="mode-chip" :class="{ active: mapMode === 'standard' }" type="button"
-          @click="emit('change-mode', 'standard')">
-          Chuẩn
+    <div class="absolute top-4 left-4 right-16 z-[1200]">
+      <div class="flex items-center gap-3">
+        <button class="map-fab !static !min-w-[112px] !px-4 !py-3 !rounded-2xl !shadow-lg" type="button" @click="toggleFullscreen">
+          {{ isFullscreen ? 'Thu nhỏ' : 'Toàn màn hình' }}
         </button>
-        <button class="mode-chip" :class="{ active: mapMode === 'osm' }" type="button"
-          @click="emit('change-mode', 'osm')">
-          OSM
-        </button>
-        <button class="mode-chip" :class="{ active: mapMode === 'light' }" type="button"
-          @click="emit('change-mode', 'light')">
-          Sáng
-        </button>
-        <button class="mode-chip" :class="{ active: mapMode === 'dark' }" type="button"
-          @click="emit('change-mode', 'dark')">
-          Tối
-        </button>
-        <button class="mode-chip" :class="{ active: mapMode === 'satellite' }" type="button"
-          @click="emit('change-mode', 'satellite')">
-          Vệ tinh
-        </button>
-        <button class="mode-chip" :class="{ active: mapMode === 'three-d' }" type="button"
-          @click="emit('change-mode', 'three-d')">
-          3D
-        </button>
-        <button class="mode-chip" :class="{ active: mapMode === 'topo' }" type="button"
-          @click="emit('change-mode', 'topo')">
-          Địa hình
-        </button>
+        <div class="min-w-0 flex-1 max-w-[420px]">
+          <slot name="top-left" />
+        </div>
+        <div class="ml-auto w-[128px] sm:w-[148px]">
+          <select
+            :value="mapMode"
+            class="w-full px-4 py-3 bg-white/95 backdrop-blur-xl border border-line rounded-2xl shadow-lg text-sm font-semibold text-text outline-none"
+            @change="emit('change-mode', $event.target.value)"
+          >
+            <option v-for="option in modeOptions" :key="option.value" :value="option.value">
+              {{ option.label }}
+            </option>
+          </select>
+        </div>
       </div>
     </div>
-
-    <section v-if="selectedCrossing" class="map-focus-card">
-      <div class="map-focus-card__header">
-        <div>
-          <p class="micro-label">Điểm đang chọn</p>
-          <h3>{{ selectedCrossing.name }}</h3>
-        </div>
-        <span class="risk-chip" :class="selectedCrossing.risk_level">
-          {{ riskLabel(selectedCrossing.risk_level) }} · {{ selectedCrossing.risk_score }}
-        </span>
-      </div>
-
-      <div class="map-focus-card__grid">
-        <article class="focus-meta">
-          <span>Địa chỉ</span>
-          <strong>{{ selectedCrossing.address || 'Đang cập nhật' }}</strong>
-        </article>
-        <article class="focus-meta">
-          <span>Quản lý</span>
-          <strong>{{ selectedCrossing.manager_name || 'Chưa có' }}</strong>
-        </article>
-        <article class="focus-meta">
-          <span>Bài tin</span>
-          <strong>{{ selectedCrossing.evidence?.article_count ?? 0 }}</strong>
-        </article>
-        <article class="focus-meta">
-          <span>Sự cố</span>
-          <strong>{{ selectedCrossing.incidents?.length ?? 0 }}</strong>
-        </article>
-      </div>
-    </section>
 
     <div v-show="mapMode !== 'three-d'" ref="mapRoot" class="map-root relative z-10"></div>
     <div v-show="mapMode === 'three-d'" ref="mapRoot3d"

@@ -183,6 +183,9 @@ function toggleSelection(id) {
 
 async function applyBulkAction() {
   if (!selectedIds.value.length) return
+  if (bulkAction.value === 'soft_delete' && !confirm(`Ẩn ${selectedIds.value.length} bản ghi đã chọn?`)) {
+    return
+  }
   pageError.value = ''
   try {
     const result = await bulkCrossings({
@@ -219,6 +222,12 @@ async function submitImport() {
     if (!Array.isArray(payload)) {
       throw new Error('JSON import phải là một mảng bản ghi.')
     }
+    if (!payload.length) {
+      throw new Error('Không có bản ghi nào để import.')
+    }
+    if (!confirm(`Import ${payload.length} bản ghi vào hệ thống?`)) {
+      return
+    }
     const result = await importCrossings(payload)
     await loadAdminOverview()
     importMessage.value = `Đã import ${result.imported} bản ghi`
@@ -238,7 +247,10 @@ function filePreviewItem(file) {
   }
 }
 
-function releasePendingFiles() {
+function releasePendingFiles(skipConfirm = false) {
+  if (!skipConfirm && pendingFiles.value.length && !confirm(`Hủy ${pendingFiles.value.length} ảnh đang chờ tải lên?`)) {
+    return
+  }
   pendingFiles.value.forEach((item) => URL.revokeObjectURL(item.previewUrl))
   pendingFiles.value = []
 }
@@ -297,6 +309,7 @@ async function uploadPendingFiles() {
 
 async function removeImage(imageId) {
   if (!selectedProfile.value?.id) return
+  if (!confirm('Xóa ảnh này khỏi hồ sơ điểm giao cắt?')) return
   try {
     await deleteCrossingImage(selectedProfile.value.id, imageId)
     await loadProfile(selectedProfile.value.id)
@@ -316,6 +329,22 @@ function closeLightbox() {
 
 function imageSrc(image) {
   return image.previewUrl || toAssetUrl(image.url)
+}
+
+function downloadLightboxImage() {
+  if (!lightboxImage.value) return
+  const url = imageSrc(lightboxImage.value)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = lightboxImage.value.original_name || lightboxImage.value.name || 'crossing-image'
+  link.target = '_blank'
+  link.rel = 'noopener'
+  link.click()
+}
+
+function openLightboxInNewTab() {
+  if (!lightboxImage.value) return
+  window.open(imageSrc(lightboxImage.value), '_blank', 'noopener,noreferrer')
 }
 
 function selectCarouselImage(index) {
@@ -371,7 +400,7 @@ function prevCarousel() {
 }
 
 onBeforeUnmount(() => {
-  releasePendingFiles()
+  releasePendingFiles(true)
 })
 </script>
 
@@ -683,13 +712,7 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
-          <div v-else
-            class="flex flex-col items-center justify-center py-20 text-center bg-bg-strong/50 rounded-3xl border-2 border-dashed border-line">
-            <Camera :size="48" class="text-soft/40 mb-4" />
-            <p class="text-soft font-bold">Chưa có ảnh hiện trường cho điểm này</p>
-            <button @click="hiddenFileInput?.click()" class="mt-4 text-brand font-bold text-sm hover:underline">Tải ảnh
-              ngay</button>
-          </div>
+          <div v-else class="hidden"></div>
 
           <!-- Pending Files -->
           <div v-if="pendingFiles.length" class="space-y-4">
@@ -833,10 +856,10 @@ onBeforeUnmount(() => {
             <p class="text-white/40 text-sm">Tải lên bởi {{ lightboxImage.uploaded_by_name || 'Hệ thống' }}</p>
           </div>
           <div class="flex items-center gap-3">
-            <button class="p-3 bg-white/10 text-white hover:bg-white/20 rounded-2xl transition-all">
+            <button @click="downloadLightboxImage" class="p-3 bg-white/10 text-white hover:bg-white/20 rounded-2xl transition-all">
               <Download :size="20" />
             </button>
-            <button class="p-3 bg-white/10 text-white hover:bg-white/20 rounded-2xl transition-all">
+            <button @click="openLightboxInNewTab" class="p-3 bg-white/10 text-white hover:bg-white/20 rounded-2xl transition-all">
               <Maximize2 :size="20" />
             </button>
           </div>

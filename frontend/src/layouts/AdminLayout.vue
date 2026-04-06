@@ -20,6 +20,7 @@ onMounted(async () => {
 })
 
 async function handleLogout() {
+  if (!confirm('Đăng xuất khỏi phiên quản trị hiện tại?')) return
   await logout()
   router.push('/admin/login')
 }
